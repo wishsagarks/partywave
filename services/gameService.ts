@@ -10,7 +10,7 @@ export class GameService {
         .from('players')
         .select('id')
         .eq('name', name)
-        .single();
+        .maybeSingle();
 
       if (existingPlayer) {
         return existingPlayer.id;
