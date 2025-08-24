@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -168,6 +168,7 @@ export default function GameFlow() {
   const stopDiscussionTimer = () => {
     setIsTimerRunning(false);
     setDiscussionTimer(0);
+  };
 
   const nextWordDistribution = () => {
     if (currentPlayerIndex < players.length - 1) {
@@ -349,9 +350,19 @@ export default function GameFlow() {
                 {getRoleEmoji(currentPlayer?.role || '')} {getRoleName(currentPlayer?.role || '')}
               </Text>
               {currentPlayer?.word ? (
-                <Text style={styles.wordText}>{currentPlayer.word}</Text>
+                <>
+                  <Text style={styles.wordText}>{currentPlayer.word}</Text>
+                  <Text style={styles.wordHint}>
+                    Describe this word without saying it directly
+                  </Text>
+                </>
               ) : (
-                <Text style={styles.noWordText}>No word - use your skills!</Text>
+                <>
+                  <Text style={styles.noWordText}>You are Mr. White</Text>
+                  <Text style={styles.mrWhiteHint}>
+                    Listen carefully and try to deduce the word!
+                  </Text>
+                </>
               )}
               
               <TouchableOpacity
@@ -517,19 +528,9 @@ export default function GameFlow() {
             <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
             <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
               {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-              <>
-                <Text style={styles.wordText}>{currentPlayer.word}</Text>
-                <Text style={styles.wordHint}>
-                  Describe this word without saying it directly
-                </Text>
-              </>
+            </Text>
             {eliminatedPlayer?.word ? (
-              <>
-                <Text style={styles.noWordText}>You are Mr. White</Text>
-                <Text style={styles.mrWhiteHint}>
-                  Listen carefully and try to deduce the word!
-                </Text>
-              </>
+              <Text style={styles.eliminatedWord}>Word: "{eliminatedPlayer.word}"</Text>
             ) : (
               <Text style={styles.eliminatedWord}>Had no word (Mr. White)</Text>
             )}
