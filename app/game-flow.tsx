@@ -544,13 +544,6 @@ export default function GameFlow() {
             <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
               {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
             </Text>
-            <>
-              {eliminatedPlayer?.word ? (
-                <Text style={styles.eliminatedWord}>Word: "{eliminatedPlayer.word}"</Text>
-              ) : (
-                <Text style={styles.eliminatedWord}>Had no word (Mr. White)</Text>
-              )}
-            </>
           </View>
 
           <TouchableOpacity

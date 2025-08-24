@@ -4,8 +4,10 @@ import { useState, useEffect } from 'react';
 import { Plus, Minus, Play, ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { GameService } from '@/services/gameService';
+import { useLeaderboard } from '@/hooks/useGameData';
 
 export default function GameSetupScreen() {
+  const { topPlayers, loading: leaderboardLoading } = useLeaderboard();
   const [playerCount, setPlayerCount] = useState(6);
   const [playerNames, setPlayerNames] = useState<string[]>(['', '', '', '', '', '']);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
@@ -92,6 +94,27 @@ export default function GameSetupScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Quick Leaderboard Preview */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🏆 Top Players</Text>
+          {leaderboardLoading ? (
+            <Text style={styles.loadingText}>Loading...</Text>
+          ) : (
+            <View style={styles.leaderboardPreview}>
+              {topPlayers.slice(0, 3).map((player, index) => (
+                <View key={player.id} style={styles.leaderboardItem}>
+                  <Text style={styles.leaderboardRank}>#{index + 1}</Text>
+                  <Text style={styles.leaderboardName}>{player.name}</Text>
+                  <Text style={styles.leaderboardPoints}>{player.total_points}pts</Text>
+                </View>
+              ))}
+              {topPlayers.length === 0 && (
+                <Text style={styles.noPlayersText}>No games played yet</Text>
+              )}
+            </View>
+          )}
+        </View>
+
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Player Count</Text>
           <View style={styles.playerCountContainer}>
@@ -110,6 +133,17 @@ export default function GameSetupScreen() {
             >
               <Plus size={20} color="white" />
             </TouchableOpacity>
+          </View>
+          
+          <View style={styles.gameInfoRow}>
+            <View style={styles.gameInfoItem}>
+              <Text style={styles.gameInfoLabel}>Expected Rounds</Text>
+              <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 0.6)}-{playerCount - 1}</Text>
+            </View>
+            <View style={styles.gameInfoItem}>
+              <Text style={styles.gameInfoLabel}>Game Duration</Text>
+              <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 2)}-{Math.ceil(playerCount * 3)}min</Text>
+            </View>
           </View>
           
           <View style={styles.roleDistribution}>
@@ -278,6 +312,67 @@ const styles = StyleSheet.create({
   startButtonText: {
     color: 'white',
     fontSize: 18,
+    fontWeight: 'bold',
+  },
+  leaderboardPreview: {
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    padding: 16,
+    gap: 12,
+  },
+  leaderboardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  leaderboardRank: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+    width: 24,
+  },
+  leaderboardName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#F3F4F6',
+    fontWeight: '500',
+  },
+  leaderboardPoints: {
+    fontSize: 12,
+    color: '#8B5CF6',
+    fontWeight: '600',
+  },
+  noPlayersText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  gameInfoRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  gameInfoItem: {
+    flex: 1,
+    backgroundColor: '#1F2937',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  gameInfoLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  gameInfoValue: {
+    fontSize: 14,
+    color: '#8B5CF6',
     fontWeight: 'bold',
   },
 });
