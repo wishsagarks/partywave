@@ -578,11 +578,9 @@ export default function GameFlow() {
           <Text style={styles.eliminatedText}>Player Eliminated:</Text>
           <View style={styles.eliminatedCard}>
             <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
-            {(eliminatedPlayer?.role === 'undercover' || eliminatedPlayer?.role === 'mrwhite') && (
-              <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
-                {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-              </Text>
-            )}
+            <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
+              {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
+            </Text>
           </View>
 
           <TouchableOpacity
