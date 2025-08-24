@@ -27,7 +27,49 @@ export default function GameFlow() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   
   useEffect(() => {
-    initializeGame();
+    let isMounted = true;
+    
+    const initializeGameSafe = async () => {
+      try {
+        // Get random word pair from active libraries
+        const selectedWordPair = await GameService.getRandomWordPair();
+        if (!isMounted) return;
+        
+        if (!selectedWordPair) {
+          Alert.alert('Error', 'No active word libraries found. Please enable some word libraries in settings.');
+          if (isMounted) {
+            router.back();
+          }
+          return;
+        }
+        
+        if (isMounted) {
+          setWordPair(selectedWordPair);
+        }
+        
+        // Parse player data
+        const names = JSON.parse(playerNames as string);
+        
+        // Assign roles using the service
+        const assignedPlayers = GameService.assignRoles(names, selectedWordPair);
+        if (isMounted) {
+          setPlayers(assignedPlayers);
+        }
+        
+      } catch (error) {
+        if (isMounted) {
+          Alert.alert('Error', 'Failed to initialize game. Please try again.');
+          console.error('Game initialization error:', error);
+          router.back();
+        }
+      }
+    };
+    
+    initializeGameSafe();
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -46,31 +88,6 @@ export default function GameFlow() {
     return () => clearInterval(interval);
   }, [isTimerRunning, discussionTimer]);
 
-  const initializeGame = async () => {
-    try {
-      // Get random word pair from active libraries
-      const selectedWordPair = await GameService.getRandomWordPair();
-      if (!selectedWordPair) {
-        Alert.alert('Error', 'No active word libraries found. Please enable some word libraries in settings.');
-        router.back();
-        return;
-      }
-      
-      setWordPair(selectedWordPair);
-      
-      // Parse player data
-      const names = JSON.parse(playerNames as string);
-      
-      // Assign roles using the service
-      const assignedPlayers = GameService.assignRoles(names, selectedWordPair);
-      setPlayers(assignedPlayers);
-      
-    } catch (error) {
-      Alert.alert('Error', 'Failed to initialize game. Please try again.');
-      console.error('Game initialization error:', error);
-      router.back();
-    }
-  };
 
   const saveGameRound = async (eliminatedPlayerId: string, voteResults: {[key: string]: number}, mrWhiteGuess?: string, mrWhiteGuessCorrect?: boolean) => {
     try {
@@ -529,11 +546,13 @@ export default function GameFlow() {
             <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
               {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
             </Text>
-            {eliminatedPlayer?.word ? (
-              <Text style={styles.eliminatedWord}>Word: "{eliminatedPlayer.word}"</Text>
-            ) : (
-              <Text style={styles.eliminatedWord}>Had no word (Mr. White)</Text>
-            )}
+            <>
+              {eliminatedPlayer?.word ? (
+                <Text style={styles.eliminatedWord}>Word: "{eliminatedPlayer.word}"</Text>
+              ) : (
+                <Text style={styles.eliminatedWord}>Had no word (Mr. White)</Text>
+              )}
+            </>
           </View>
 
           <TouchableOpacity
