@@ -25,6 +25,8 @@ export default function GameFlow() {
   const [showMrWhiteGuess, setShowMrWhiteGuess] = useState(false);
   const [discussionTimer, setDiscussionTimer] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
+  const [individualVotes, setIndividualVotes] = useState<{[voterId: string]: string}>({});
   
   useEffect(() => {
     let isMounted = true;
@@ -211,18 +213,29 @@ export default function GameFlow() {
   const startVoting = () => {
     setCurrentPhase('voting');
     setVotingResults({});
+    setCurrentVoterIndex(0);
+    setIndividualVotes({});
   };
 
   const castVote = async (votedForId: string) => {
+    const alivePlayers = players.filter(p => p.isAlive);
+    const currentVoter = alivePlayers[currentVoterIndex];
+    
+    // Record this player's vote
+    const newIndividualVotes = { ...individualVotes };
+    newIndividualVotes[currentVoter.id] = votedForId;
+    setIndividualVotes(newIndividualVotes);
+    
+    // Update vote tallies
     const newResults = { ...votingResults };
     newResults[votedForId] = (newResults[votedForId] || 0) + 1;
     setVotingResults(newResults);
     
-    const totalVotes = Object.values(newResults).reduce((a, b) => a + b, 0);
-    const alivePlayers = players.filter(p => p.isAlive);
-    
-    if (totalVotes >= alivePlayers.length) {
-      // Determine who got the most votes
+    // Move to next voter or finish voting
+    if (currentVoterIndex < alivePlayers.length - 1) {
+      setCurrentVoterIndex(currentVoterIndex + 1);
+    } else {
+      // All players have voted, determine elimination
       const maxVotes = Math.max(...Object.values(newResults));
       const mostVotedIds = Object.entries(newResults)
         .filter(([_, votes]) => votes === maxVotes)
@@ -240,7 +253,7 @@ export default function GameFlow() {
           }
         }
       } else {
-        // Tie - revote or random elimination
+        // Tie - random elimination
         Alert.alert('Tie Vote', 'There was a tie in voting. Randomly eliminating one of the tied players.', [
           { text: 'OK', onPress: async () => {
             const randomEliminated = mostVotedIds[Math.floor(Math.random() * mostVotedIds.length)];
@@ -290,6 +303,8 @@ export default function GameFlow() {
     setCurrentDescriptionIndex(0);
     setEliminatedPlayer(null);
     setVotingResults({});
+    setCurrentVoterIndex(0);
+    setIndividualVotes({});
     stopDiscussionTimer();
   };
 
@@ -496,35 +511,61 @@ export default function GameFlow() {
 
   if (currentPhase === 'voting') {
     const alivePlayers = players.filter(p => p.isAlive);
+    const currentVoter = alivePlayers[currentVoterIndex];
+    const hasVoted = individualVotes[currentVoter?.id];
     
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Voting Phase</Text>
-          <Text style={styles.subtitle}>Round {currentRound}</Text>
+          <Text style={styles.subtitle}>Round {currentRound} • {currentVoterIndex + 1}/{alivePlayers.length}</Text>
         </View>
 
-        <ScrollView style={styles.votingContainer}>
+        <View style={styles.centerContent}>
+          <Text style={styles.passPhoneText}>
+            Pass the phone to:
+          </Text>
+          <Text style={styles.currentPlayerName}>
+            {currentVoter?.name}
+          </Text>
+          
           <Text style={styles.votingInstructions}>
             Vote to eliminate the most suspicious player:
           </Text>
-          
-          {alivePlayers.map((player) => (
+        </View>
+
+        <ScrollView style={styles.votingContainer}>
+          {alivePlayers
+            .filter(player => player.id !== currentVoter?.id) // Can't vote for themselves
+            .map((player) => (
             <TouchableOpacity
               key={player.id}
-              style={[
-                styles.voteButton,
-                { opacity: votingResults[player.id] > 0 ? 0.7 : 1 }
-              ]}
+              style={styles.voteButton}
               onPress={() => castVote(player.id)}
+              disabled={hasVoted}
             >
               <Text style={styles.votePlayerName}>{player.name}</Text>
               <Text style={styles.voteCount}>
-                Votes: {votingResults[player.id] || 0}
+                Current Votes: {votingResults[player.id] || 0}
               </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {hasVoted && (
+          <View style={styles.votedConfirmation}>
+            <Text style={styles.votedText}>
+              ✓ Vote cast for {players.find(p => p.id === individualVotes[currentVoter.id])?.name}
+            </Text>
+            <Text style={styles.waitingText}>
+              Waiting for other players to vote...
+            </Text>
+          </View>
+        )}
+      </LinearGradient>
+    );
+  }
+          
       </LinearGradient>
     );
   }
@@ -880,6 +921,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8B5CF6',
     fontWeight: '500',
+  },
+  votedConfirmation: {
+    backgroundColor: '#374151',
+    margin: 20,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    gap: 8,
+  },
+  votedText: {
+    fontSize: 16,
+    color: '#10B981',
+    fontWeight: '600',
+  },
+  waitingText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   eliminatedText: {
     fontSize: 18,
