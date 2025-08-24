@@ -920,8 +920,8 @@ const styles = StyleSheet.create({
   },
   votedConfirmation: {
     backgroundColor: '#374151',
-    margin: 20,
     padding: 16,
+    margin: 20,
     borderRadius: 12,
     alignItems: 'center',
     gap: 8,
@@ -934,7 +934,6 @@ const styles = StyleSheet.create({
   waitingText: {
     fontSize: 14,
     color: '#9CA3AF',
-    fontStyle: 'italic',
   },
   eliminatedText: {
     fontSize: 18,
