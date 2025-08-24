@@ -1,23 +1,9 @@
 import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Play, Users, BookOpen, Trophy, Wifi, WifiOff } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
-import { useWordLibraries } from '@/hooks/useGameData';
+import { Play, Users, Trophy, WifiOff } from 'lucide-react-native';
 
 export default function HomeScreen() {
-  const { libraries, loading } = useWordLibraries();
-  const [totalWordPairs, setTotalWordPairs] = useState(0);
-
-  useEffect(() => {
-    if (libraries.length > 0) {
-      const total = libraries
-        .filter(lib => lib.is_active)
-        .reduce((sum, lib) => sum + lib.pairs.length, 0);
-      setTotalWordPairs(total);
-    }
-  }, [libraries]);
-
   return (
     <LinearGradient
       colors={['#1F2937', '#111827']}
@@ -53,14 +39,6 @@ export default function HomeScreen() {
           <Trophy size={20} color="#F59E0B" />
           <Text style={styles.buttonText}>Leaderboard</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.menuButton}
-          onPress={() => router.push('/word-libraries')}
-        >
-          <BookOpen size={20} color="#10B981" />
-          <Text style={styles.buttonText}>Word Libraries ({totalWordPairs})</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={styles.gameInfo}>
@@ -81,10 +59,6 @@ export default function HomeScreen() {
       <Text style={styles.howToPlay}>
         Get secret words, describe them cleverly, discuss suspicions, vote to eliminate impostors!
       </Text>
-
-      {loading && (
-        <Text style={styles.loadingText}>Loading word libraries...</Text>
-      )}
     </LinearGradient>
   );
 }

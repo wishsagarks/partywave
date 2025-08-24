@@ -216,12 +216,13 @@ export class GameService {
     }
   }
 
-  static async createGame(playerCount: number): Promise<string> {
+  static async createGame(playerCount: number, gameName: string = 'Unnamed Game'): Promise<string> {
     try {
       const { data, error } = await supabase
         .from('games')
         .insert({
           player_count: playerCount,
+          game_name: gameName,
           total_rounds: 0,
         })
         .select('id')
@@ -364,9 +365,14 @@ export class GameService {
     }
   }
 
-  static assignRoles(playerNames: string[], wordPair: WordPair, playerIds: string[]): Player[] {
+  static assignRoles(
+    playerNames: string[], 
+    wordPair: WordPair, 
+    playerIds: string[], 
+    customRoles?: { civilians: number; undercover: number; mrWhite: number }
+  ): Player[] {
     const playerCount = playerNames.length;
-    const distribution = this.getRoleDistribution(playerCount);
+    const distribution = customRoles || this.getRoleDistribution(playerCount);
     
     // Create role array
     const roles: PlayerRole[] = [
@@ -375,17 +381,37 @@ export class GameService {
       ...Array(distribution.mrWhite).fill('mrwhite'),
     ];
 
-    // Shuffle roles using Fisher-Yates algorithm for true randomness
+    // Multiple shuffles for maximum randomness
     for (let i = roles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [roles[i], roles[j]] = [roles[j], roles[i]];
     }
+    
+    // Additional shuffle with different seed
+    for (let i = 0; i < roles.length; i++) {
+      const j = Math.floor(Math.random() * roles.length);
+      [roles[i], roles[j]] = [roles[j], roles[i]];
+    }
 
-    // Create a shuffled array of player indices to ensure role assignment is independent of player order
+    // Create multiple shuffled arrays for maximum randomness
     const playerIndices = Array.from({ length: playerNames.length }, (_, i) => i);
+    
+    // First shuffle
     for (let i = playerIndices.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [playerIndices[i], playerIndices[j]] = [playerIndices[j], playerIndices[i]];
+    }
+    
+    // Second shuffle with different pattern
+    for (let i = 0; i < playerIndices.length; i++) {
+      const j = Math.floor(Math.random() * playerIndices.length);
+      [playerIndices[i], playerIndices[j]] = [playerIndices[j], playerIndices[i]];
+    }
+    
+    // Third shuffle for roles array again
+    for (let i = roles.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [roles[i], roles[j]] = [roles[j], roles[i]];
     }
 
     // Assign to players

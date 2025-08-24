@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
-import { Plus, Minus, Play, ArrowLeft } from 'lucide-react-native';
+import { Plus, Minus, Play, ArrowLeft, Users, X } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { GameService } from '@/services/gameService';
 import { useLeaderboard } from '@/hooks/useGameData';
@@ -9,30 +9,66 @@ import { useLeaderboard } from '@/hooks/useGameData';
 export default function GameSetupScreen() {
   const { topPlayers, loading: leaderboardLoading } = useLeaderboard();
   const [playerCount, setPlayerCount] = useState(6);
-  const [playerNames, setPlayerNames] = useState<string[]>(['', '', '', '', '', '']);
+  const [gameName, setGameName] = useState('');
+  const [showPlayerNamesModal, setShowPlayerNamesModal] = useState(false);
+  const [playerNames, setPlayerNames] = useState<string[]>([]);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [customRoles, setCustomRoles] = useState<{
+    civilians: number;
+    undercover: number;
+    mrWhite: number;
+  } | null>(null);
+
+  useEffect(() => {
+    // Initialize player names array when player count changes
+    const newNames = Array(playerCount).fill('');
+    setPlayerNames(newNames);
+  }, [playerCount]);
 
   const updatePlayerCount = (count: number) => {
     const newCount = Math.max(3, Math.min(20, count));
     setPlayerCount(newCount);
-    
-    const newNames = [...playerNames];
-    if (newCount > playerNames.length) {
-      // Add empty names for new players
-      for (let i = playerNames.length; i < newCount; i++) {
-        newNames.push('');
-      }
-    } else {
-      // Remove excess names
-      newNames.splice(newCount);
-    }
-    setPlayerNames(newNames);
+    setCustomRoles(null); // Reset custom roles when player count changes
   };
 
   const updatePlayerName = (index: number, name: string) => {
     const newNames = [...playerNames];
     newNames[index] = name;
     setPlayerNames(newNames);
+  };
+
+  const updateRoleCount = (role: 'undercover' | 'mrWhite', delta: number) => {
+    const currentRoles = customRoles || GameService.getRoleDistribution(playerCount);
+    const newRoles = { ...currentRoles };
+    
+    if (role === 'undercover') {
+      newRoles.undercover = Math.max(0, Math.min(playerCount - 1, newRoles.undercover + delta));
+    } else {
+      newRoles.mrWhite = Math.max(0, Math.min(1, newRoles.mrWhite + delta));
+    }
+    
+    // Adjust civilians accordingly
+    newRoles.civilians = playerCount - newRoles.undercover - newRoles.mrWhite;
+    
+    // Ensure at least 1 civilian
+    if (newRoles.civilians < 1) {
+      if (role === 'undercover') {
+        newRoles.undercover = Math.max(0, newRoles.undercover - 1);
+      } else {
+        newRoles.mrWhite = 0;
+      }
+      newRoles.civilians = playerCount - newRoles.undercover - newRoles.mrWhite;
+    }
+    
+    setCustomRoles(newRoles);
+  };
+
+  const startGameSetup = () => {
+    if (!gameName.trim()) {
+      Alert.alert('Missing Game Name', 'Please enter a name for this game session.');
+      return;
+    }
+    setShowPlayerNamesModal(true);
   };
 
   const startGame = async () => {
@@ -59,8 +95,9 @@ export default function GameSetupScreen() {
       );
       
       // Create game record
-      const gameId = await GameService.createGame(playerCount);
+      const gameId = await GameService.createGame(playerCount, gameName.trim());
       
+      setShowPlayerNamesModal(false);
       router.push({
         pathname: '/game-flow',
         params: {
@@ -68,6 +105,7 @@ export default function GameSetupScreen() {
           playerCount: playerCount.toString(),
           playerNames: JSON.stringify(playerNames),
           playerIds: JSON.stringify(playerIds),
+          customRoles: customRoles ? JSON.stringify(customRoles) : '',
         },
       });
     } catch (error) {
@@ -78,7 +116,7 @@ export default function GameSetupScreen() {
     }
   };
 
-  const roles = GameService.getRoleDistribution(playerCount);
+  const roles = customRoles || GameService.getRoleDistribution(playerCount);
 
   return (
     <LinearGradient
@@ -113,6 +151,17 @@ export default function GameSetupScreen() {
               )}
             </View>
           )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Game Name</Text>
+          <TextInput
+            style={styles.gameNameInput}
+            value={gameName}
+            onChangeText={setGameName}
+            placeholder="Enter game session name (e.g., 'Friday Night Game')"
+            placeholderTextColor="#9CA3AF"
+          />
         </View>
 
         <View style={styles.section}>
@@ -152,39 +201,51 @@ export default function GameSetupScreen() {
               <Text style={styles.roleName}>Civilians</Text>
               <Text style={styles.roleCount}>{roles.civilians}</Text>
             </View>
-            <View style={styles.roleCard}>
+            <View style={[styles.roleCard, styles.adjustableRole]}>
               <Text style={styles.roleEmoji}>🕵️</Text>
               <Text style={styles.roleName}>Undercover</Text>
-              <Text style={styles.roleCount}>{roles.undercover}</Text>
+              <View style={styles.roleAdjuster}>
+                <TouchableOpacity 
+                  style={styles.roleButton}
+                  onPress={() => updateRoleCount('undercover', -1)}
+                >
+                  <Minus size={12} color="white" />
+                </TouchableOpacity>
+                <Text style={styles.roleCount}>{roles.undercover}</Text>
+                <TouchableOpacity 
+                  style={styles.roleButton}
+                  onPress={() => updateRoleCount('undercover', 1)}
+                >
+                  <Plus size={12} color="white" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.roleCard}>
+            <View style={[styles.roleCard, styles.adjustableRole]}>
               <Text style={styles.roleEmoji}>❓</Text>
               <Text style={styles.roleName}>Mr. White</Text>
-              <Text style={styles.roleCount}>{roles.mrWhite}</Text>
+              <View style={styles.roleAdjuster}>
+                <TouchableOpacity 
+                  style={styles.roleButton}
+                  onPress={() => updateRoleCount('mrWhite', -1)}
+                >
+                  <Minus size={12} color="white" />
+                </TouchableOpacity>
+                <Text style={styles.roleCount}>{roles.mrWhite}</Text>
+                <TouchableOpacity 
+                  style={styles.roleButton}
+                  onPress={() => updateRoleCount('mrWhite', 1)}
+                >
+                  <Plus size={12} color="white" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Player Names</Text>
-          {playerNames.map((name, index) => (
-            <View key={index} style={styles.playerInputContainer}>
-              <Text style={styles.playerNumber}>P{index + 1}</Text>
-              <TextInput
-                style={styles.playerInput}
-                value={name}
-                onChangeText={(text) => updatePlayerName(index, text)}
-                placeholder={`Player ${index + 1} name`}
-                placeholderTextColor="#9CA3AF"
-              />
-            </View>
-          ))}
         </View>
       </ScrollView>
 
       <TouchableOpacity 
         style={styles.startButton}
-        onPress={startGame}
+        onPress={startGameSetup}
         disabled={isCreatingGame}
       >
         <LinearGradient
@@ -193,10 +254,64 @@ export default function GameSetupScreen() {
         >
           <Play size={20} color="white" />
           <Text style={styles.startButtonText}>
-            {isCreatingGame ? 'Creating Game...' : 'Start Game'}
+            {isCreatingGame ? 'Creating Game...' : 'Setup Players'}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
+
+      {/* Player Names Modal */}
+      <Modal
+        visible={showPlayerNamesModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <LinearGradient
+          colors={['#1F2937', '#111827']}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Enter Player Names</Text>
+            <TouchableOpacity onPress={() => setShowPlayerNamesModal(false)}>
+              <X size={24} color="#F3F4F6" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.modalSubtitle}>
+              Game: {gameName} • {playerCount} Players
+            </Text>
+            
+            {playerNames.map((name, index) => (
+              <View key={index} style={styles.playerInputContainer}>
+                <Text style={styles.playerNumber}>P{index + 1}</Text>
+                <TextInput
+                  style={styles.playerInput}
+                  value={name}
+                  onChangeText={(text) => updatePlayerName(index, text)}
+                  placeholder={`Player ${index + 1} name`}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            ))}
+          </ScrollView>
+
+          <TouchableOpacity 
+            style={styles.startGameButton}
+            onPress={startGame}
+            disabled={isCreatingGame}
+          >
+            <LinearGradient
+              colors={['#8B5CF6', '#7C3AED']}
+              style={styles.startButtonGradient}
+            >
+              <Users size={20} color="white" />
+              <Text style={styles.startButtonText}>
+                {isCreatingGame ? 'Creating Game...' : 'Start Game'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </LinearGradient>
+      </Modal>
     </LinearGradient>
   );
 }
@@ -374,5 +489,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8B5CF6',
     fontWeight: 'bold',
+  },
+  gameNameInput: {
+    backgroundColor: '#374151',
+    color: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+    fontSize: 16,
+  },
+  adjustableRole: {
+    paddingVertical: 12,
+  },
+  roleAdjuster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roleButton: {
+    backgroundColor: '#8B5CF6',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: '#374151',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: '#8B5CF6',
+    textAlign: 'center',
+    marginBottom: 24,
+    fontWeight: '600',
+  },
+  startGameButton: {
+    margin: 20,
   },
 });
