@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Modal, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { BookOpen, Plus, Edit3, Trash2, Eye, X, ToggleLeft, ToggleRight } from 'lucide-react-native';
+import { BookOpen, Plus, CreditCard as Edit3, Trash2, Eye, X, ToggleLeft, ToggleRight } from 'lucide-react-native';
 import { useWordLibraries } from '@/hooks/useGameData';
 import { WordPair } from '@/types/game';
 
