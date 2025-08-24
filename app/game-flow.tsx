@@ -233,40 +233,45 @@ export default function GameFlow() {
     if (currentVoterIndex < alivePlayers.length - 1) {
       setCurrentVoterIndex(currentVoterIndex + 1);
     } else {
-      // All players have voted, determine elimination
-      const maxVotes = Math.max(...Object.values(newResults));
-      const mostVotedIds = Object.entries(newResults)
-        .filter(([_, votes]) => votes === maxVotes)
-        .map(([id, _]) => id);
-      
-      if (mostVotedIds.length === 1) {
-        const eliminatedId = mostVotedIds[0];
-        const eliminated = players.find(p => p.id === eliminatedId);
-        if (eliminated) {
-          if (eliminated.role === 'mrwhite') {
-            handleMrWhiteElimination(eliminated);
-          } else {
-            setEliminatedPlayer(eliminated);
-            await eliminatePlayer(eliminatedId);
-          }
+      // All players have voted, process results
+      processVotingResults(newResults);
+    }
+  };
+
+  const processVotingResults = async (results: {[key: string]: number}) => {
+    // Determine elimination
+    const maxVotes = Math.max(...Object.values(results));
+    const mostVotedIds = Object.entries(results)
+      .filter(([_, votes]) => votes === maxVotes)
+      .map(([id, _]) => id);
+    
+    if (mostVotedIds.length === 1) {
+      const eliminatedId = mostVotedIds[0];
+      const eliminated = players.find(p => p.id === eliminatedId);
+      if (eliminated) {
+        if (eliminated.role === 'mrwhite') {
+          handleMrWhiteElimination(eliminated);
+        } else {
+          setEliminatedPlayer(eliminated);
+          await eliminatePlayer(eliminatedId);
         }
-      } else {
-        // Tie - random elimination
-        Alert.alert('Tie Vote', 'There was a tie in voting. Randomly eliminating one of the tied players.', [
-          { text: 'OK', onPress: async () => {
-            const randomEliminated = mostVotedIds[Math.floor(Math.random() * mostVotedIds.length)];
-            const eliminated = players.find(p => p.id === randomEliminated);
-            if (eliminated) {
-              if (eliminated.role === 'mrwhite') {
-                handleMrWhiteElimination(eliminated);
-              } else {
-                setEliminatedPlayer(eliminated);
-                await eliminatePlayer(randomEliminated);
-              }
-            }
-          }}
-        ]);
       }
+    } else {
+      // Tie - random elimination
+      Alert.alert('Tie Vote', 'There was a tie in voting. Randomly eliminating one of the tied players.', [
+        { text: 'OK', onPress: async () => {
+          const randomEliminated = mostVotedIds[Math.floor(Math.random() * mostVotedIds.length)];
+          const eliminated = players.find(p => p.id === randomEliminated);
+          if (eliminated) {
+            if (eliminated.role === 'mrwhite') {
+              handleMrWhiteElimination(eliminated);
+            } else {
+              setEliminatedPlayer(eliminated);
+              await eliminatePlayer(randomEliminated);
+            }
+          }
+        }}
+      ]);
     }
   };
 

@@ -375,22 +375,34 @@ export class GameService {
       ...Array(distribution.mrWhite).fill('mrwhite'),
     ];
 
-    // Shuffle roles
+    // Shuffle roles using Fisher-Yates algorithm for true randomness
     for (let i = roles.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [roles[i], roles[j]] = [roles[j], roles[i]];
     }
 
+    // Create a shuffled array of player indices to ensure role assignment is independent of player order
+    const playerIndices = Array.from({ length: playerNames.length }, (_, i) => i);
+    for (let i = playerIndices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [playerIndices[i], playerIndices[j]] = [playerIndices[j], playerIndices[i]];
+    }
+
     // Assign to players
-    return playerNames.map((name, index) => ({
-      id: playerIds[index],
+    return playerNames.map((name, originalIndex) => {
+      const shuffledIndex = playerIndices[originalIndex];
+      const role = roles[shuffledIndex];
+      
+      return {
+      id: playerIds[originalIndex],
       name,
-      role: roles[index],
-      word: roles[index] === 'civilian' ? wordPair.civilian_word :
-            roles[index] === 'undercover' ? wordPair.undercover_word : '',
+      role,
+      word: role === 'civilian' ? wordPair.civilian_word :
+            role === 'undercover' ? wordPair.undercover_word : '',
       isAlive: true,
       points: 0,
-    }));
+    };
+    });
   }
 
   static checkWinCondition(players: Player[]): {
