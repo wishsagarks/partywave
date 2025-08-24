@@ -423,14 +423,8 @@ export default function GameFlow() {
     setDescriptionOrder(order);
     setCurrentDescriptionIndex(0);
     setEliminatedPlayer(null);
-    setVotingResults({});
-    setCurrentVoterIndex(0);
-    setIndividualVotes({});
+    resetVotingState();
     stopDiscussionTimer();
-  };
-
-  const restartGame = () => {
-    router.back();
   };
 
   const formatTime = (seconds: number) => {
@@ -464,6 +458,10 @@ export default function GameFlow() {
       case 'mrwhite': return '❓';
       default: return '❓';
     }
+  };
+
+  const restartGame = () => {
+    router.back();
   };
 
   if (currentPhase === 'word-distribution') {
