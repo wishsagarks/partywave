@@ -363,9 +363,6 @@ export default function GameFlow() {
             </TouchableOpacity>
           ) : (
             <View style={styles.wordCard}>
-              <Text style={[styles.roleText, { color: getRoleColor(currentPlayer?.role || '') }]}>
-                {getRoleEmoji(currentPlayer?.role || '')} {getRoleName(currentPlayer?.role || '')}
-              </Text>
               {currentPlayer?.word ? (
                 <>
                   <Text style={styles.wordText}>{currentPlayer.word}</Text>
