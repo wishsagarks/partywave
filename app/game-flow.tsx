@@ -6,7 +6,6 @@ import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle
 import { GameService } from '@/services/gameService';
 import { Player, WordPair, GamePhase } from '@/types/game';
 
-
 export default function GameFlow() {
   const { gameId, playerCount, playerNames, playerIds } = useLocalSearchParams();
   
@@ -90,7 +89,6 @@ export default function GameFlow() {
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, discussionTimer]);
-
 
   const saveGameRound = async (eliminatedPlayerId: string, voteResults: {[key: string]: number}, mrWhiteGuess?: string, mrWhiteGuessCorrect?: boolean) => {
     try {
@@ -318,12 +316,6 @@ export default function GameFlow() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const shuffleDescriptionOrder = () => {
-    // Randomize description order each round
-    setCurrentPlayerIndex(0);
-    setCurrentDescriptionIndex(0);
-  };
-
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'civilian': return '#10B981';
@@ -518,7 +510,7 @@ export default function GameFlow() {
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Voting Phase</Text>
-          <Text style={styles.subtitle}>Round {currentRound} • {currentVoterIndex + 1}/{alivePlayers.length}</Text>
+          <Text style={styles.subtitle}>Round {currentRound} • Voter {currentVoterIndex + 1}/{alivePlayers.length}</Text>
         </View>
 
         <View style={styles.centerContent}>
@@ -536,11 +528,14 @@ export default function GameFlow() {
 
         <ScrollView style={styles.votingContainer}>
           {alivePlayers
-            .filter(player => player.id !== currentVoter?.id) // Can't vote for themselves
+            .filter(player => player.id !== currentVoter?.id)
             .map((player) => (
             <TouchableOpacity
               key={player.id}
-              style={styles.voteButton}
+              style={[
+                styles.voteButton,
+                hasVoted && { opacity: 0.5 }
+              ]}
               onPress={() => castVote(player.id)}
               disabled={hasVoted}
             >
@@ -558,7 +553,7 @@ export default function GameFlow() {
               ✓ Vote cast for {players.find(p => p.id === individualVotes[currentVoter.id])?.name}
             </Text>
             <Text style={styles.waitingText}>
-              Waiting for other players to vote...
+              Waiting for {alivePlayers.length - currentVoterIndex - 1} more players to vote...
             </Text>
           </View>
         )}
@@ -567,6 +562,8 @@ export default function GameFlow() {
   }
 
   if (currentPhase === 'elimination-result') {
+    const shouldShowRole = eliminatedPlayer?.role === 'undercover' || eliminatedPlayer?.role === 'mrwhite';
+    
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
@@ -578,9 +575,11 @@ export default function GameFlow() {
           <Text style={styles.eliminatedText}>Player Eliminated:</Text>
           <View style={styles.eliminatedCard}>
             <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
-            <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
-              {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-            </Text>
+            {shouldShowRole && (
+              <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
+                {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
+              </Text>
+            )}
           </View>
 
           <TouchableOpacity
@@ -595,7 +594,6 @@ export default function GameFlow() {
     );
   }
 
-  // Mr. White Guess Modal
   if (showMrWhiteGuess) {
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
@@ -766,10 +764,6 @@ const styles = StyleSheet.create({
     gap: 16,
     minWidth: 280,
   },
-  roleText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
   wordText: {
     fontSize: 32,
     fontWeight: 'bold',
@@ -907,6 +901,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4B5563',
   },
   votePlayerName: {
     fontSize: 16,
@@ -957,11 +953,6 @@ const styles = StyleSheet.create({
   eliminatedRole: {
     fontSize: 16,
     fontWeight: '600',
-  },
-  eliminatedWord: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
   },
   mrWhiteGuessInstructions: {
     fontSize: 18,
