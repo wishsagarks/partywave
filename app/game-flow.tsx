@@ -358,34 +358,6 @@ export default function GameFlow() {
     setIndividualVotes({});
   };
 
-  const nextRound = () => {
-    setCurrentRound(currentRound + 1);
-    setCurrentPhase('description');
-    const alivePlayers = players.filter(p => p.isAlive);
-    const order = generateDescriptionOrder(alivePlayers);
-    setDescriptionOrder(order);
-    setCurrentDescriptionIndex(0);
-    setEliminatedPlayer(null);
-    resetVotingState(); // Use the new reset function
-    stopDiscussionTimer();
-  };
-
-  const startVoting = () => {
-    resetVotingState(); // Reset voting state before starting
-    setCurrentPhase('voting');
-  };
-            if (eliminated.role === 'mrwhite') {
-              handleMrWhiteElimination(eliminated);
-            } else {
-              setEliminatedPlayer(eliminated);
-              await eliminatePlayer(randomEliminated);
-            }
-          }
-        }}
-      ]);
-    }
-  };
-
   const eliminatePlayer = async (playerId: string) => {
     const newPlayers = players.map(p => 
       p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
@@ -423,8 +395,12 @@ export default function GameFlow() {
     setDescriptionOrder(order);
     setCurrentDescriptionIndex(0);
     setEliminatedPlayer(null);
-    resetVotingState();
+    resetVotingState(); // Use the new reset function
     stopDiscussionTimer();
+  };
+
+  const restartGame = () => {
+    router.back();
   };
 
   const formatTime = (seconds: number) => {
@@ -458,10 +434,6 @@ export default function GameFlow() {
       case 'mrwhite': return '❓';
       default: return '❓';
     }
-  };
-
-  const restartGame = () => {
-    router.back();
   };
 
   if (currentPhase === 'word-distribution') {
@@ -1353,5 +1325,11 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+    marginBottom: 16,
   },
 });
