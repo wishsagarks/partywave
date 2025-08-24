@@ -219,6 +219,12 @@ export default function GameFlow() {
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
     
+    // Safety check to prevent crash
+    if (!currentVoter) {
+      console.error('Current voter is undefined');
+      return;
+    }
+    
     // Record this player's vote
     const newIndividualVotes = { ...individualVotes };
     newIndividualVotes[currentVoter.id] = votedForId;
