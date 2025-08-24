@@ -364,7 +364,7 @@ export class GameService {
     }
   }
 
-  static assignRoles(playerNames: string[], wordPair: WordPair): Player[] {
+  static assignRoles(playerNames: string[], wordPair: WordPair, playerIds: string[]): Player[] {
     const playerCount = playerNames.length;
     const distribution = this.getRoleDistribution(playerCount);
     
@@ -383,7 +383,7 @@ export class GameService {
 
     // Assign to players
     return playerNames.map((name, index) => ({
-      id: `player-${index}`,
+      id: playerIds[index],
       name,
       role: roles[index],
       word: roles[index] === 'civilian' ? wordPair.civilian_word :

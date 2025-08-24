@@ -49,9 +49,10 @@ export default function GameFlow() {
         
         // Parse player data
         const names = JSON.parse(playerNames as string);
+        const ids = JSON.parse(playerIds as string);
         
         // Assign roles using the service
-        const assignedPlayers = GameService.assignRoles(names, selectedWordPair);
+        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids);
         if (isMounted) {
           setPlayers(assignedPlayers);
         }
