@@ -238,7 +238,9 @@ export default function GameFlow() {
     }
   };
 
-  const startVoting = () => {
+  };
+
+  const castVote = (votedForId: string) => {
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
     
