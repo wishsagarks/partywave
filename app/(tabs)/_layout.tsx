@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Chrome as Home, Users, Settings, Trophy } from 'lucide-react-native';
+import { Chrome as Home, Users, BookOpen, Trophy } from 'lucide-react-native';
 
 export default function TabLayout() {
   return (
@@ -41,11 +41,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="word-libraries"
         options={{
-          title: 'Settings',
+          title: 'Libraries',
           tabBarIcon: ({ size, color }) => (
-            <Settings size={size} color={color} />
+            <BookOpen size={size} color={color} />
           ),
         }}
       />

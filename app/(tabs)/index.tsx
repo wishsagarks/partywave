@@ -1,9 +1,23 @@
 import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Play, Users, BookOpen, Trophy } from 'lucide-react-native';
+import { Play, Users, BookOpen, Trophy, Wifi, WifiOff } from 'lucide-react-native';
+import { useState, useEffect } from 'react';
+import { useWordLibraries } from '@/hooks/useGameData';
 
 export default function HomeScreen() {
+  const { libraries, loading } = useWordLibraries();
+  const [totalWordPairs, setTotalWordPairs] = useState(0);
+
+  useEffect(() => {
+    if (libraries.length > 0) {
+      const total = libraries
+        .filter(lib => lib.is_active)
+        .reduce((sum, lib) => sum + lib.pairs.length, 0);
+      setTotalWordPairs(total);
+    }
+  }, [libraries]);
+
   return (
     <LinearGradient
       colors={['#1F2937', '#111827']}
@@ -12,6 +26,10 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>🎭 UNDERCOVER</Text>
         <Text style={styles.subtitle}>Word Party Game</Text>
+        <View style={styles.offlineIndicator}>
+          <WifiOff size={16} color="#10B981" />
+          <Text style={styles.offlineText}>Offline Mode</Text>
+        </View>
       </View>
 
       <View style={styles.menuContainer}>
@@ -38,10 +56,10 @@ export default function HomeScreen() {
 
         <TouchableOpacity 
           style={styles.menuButton}
-          onPress={() => router.push('/settings')}
+          onPress={() => router.push('/word-libraries')}
         >
           <BookOpen size={20} color="#10B981" />
-          <Text style={styles.buttonText}>Word Libraries</Text>
+          <Text style={styles.buttonText}>Word Libraries ({totalWordPairs})</Text>
         </TouchableOpacity>
       </View>
 
@@ -51,18 +69,22 @@ export default function HomeScreen() {
           <Text style={styles.infoText}>3-20 Players</Text>
         </View>
         <View style={styles.infoCard}>
-          <Text style={styles.infoEmoji}>📱</Text>
+          <Text style={styles.infoEmoji}>🔄</Text>
           <Text style={styles.infoText}>Pass & Play</Text>
         </View>
         <View style={styles.infoCard}>
-          <Text style={styles.infoEmoji}>🎯</Text>
+          <Text style={styles.infoEmoji}>🕵️</Text>
           <Text style={styles.infoText}>Social Deduction</Text>
         </View>
       </View>
 
       <Text style={styles.howToPlay}>
-        Describe your secret word, find the impostors, and win through deduction and bluffing!
+        Get secret words, describe them cleverly, discuss suspicions, vote to eliminate impostors!
       </Text>
+
+      {loading && (
+        <Text style={styles.loadingText}>Loading word libraries...</Text>
+      )}
     </LinearGradient>
   );
 }
@@ -75,7 +97,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 32,
   },
   title: {
     fontSize: 32,
@@ -88,6 +110,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#9CA3AF',
     fontStyle: 'italic',
+  },
+  offlineIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#10B981',
+  },
+  offlineText: {
+    fontSize: 12,
+    color: '#10B981',
+    fontWeight: '600',
   },
   menuContainer: {
     flex: 1,
@@ -159,5 +198,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     marginBottom: 20,
+  },
+  loadingText: {
+    textAlign: 'center',
+    color: '#6B7280',
+    fontSize: 12,
+    fontStyle: 'italic',
   },
 });

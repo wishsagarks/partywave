@@ -2,120 +2,172 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert } fr
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle } from 'lucide-react-native';
+import { GameService } from '@/services/gameService';
+import { Player, WordPair, GamePhase } from '@/types/game';
 
-interface Player {
-  id: number;
-  name: string;
-  role: 'civilian' | 'undercover' | 'mrwhite';
-  word: string;
-  isAlive: boolean;
-  points: number;
-}
-
-interface WordPair {
-  civilian: string;
-  undercover: string;
-}
-
-const WORD_PAIRS: WordPair[] = [
-  { civilian: "Cat", undercover: "Dog" },
-  { civilian: "Coffee", undercover: "Tea" },
-  { civilian: "Pizza", undercover: "Burger" },
-  { civilian: "Apple", undercover: "Orange" },
-  { civilian: "Car", undercover: "Motorcycle" },
-  { civilian: "Book", undercover: "Magazine" },
-  { civilian: "Beach", undercover: "Lake" },
-  { civilian: "Guitar", undercover: "Piano" },
-  { civilian: "Summer", undercover: "Winter" },
-  { civilian: "Movie", undercover: "TV Show" },
-  { civilian: "Doctor", undercover: "Nurse" },
-  { civilian: "Mountain", undercover: "Hill" },
-  { civilian: "Chocolate", undercover: "Vanilla" },
-  { civilian: "Snake", undercover: "Lizard" },
-  { civilian: "Rain", undercover: "Snow" },
-  { civilian: "Football", undercover: "Basketball" },
-  { civilian: "Pencil", undercover: "Pen" },
-  { civilian: "Lion", undercover: "Tiger" },
-  { civilian: "Ocean", undercover: "River" },
-  { civilian: "Sandwich", undercover: "Wrap" },
-];
-
-type GamePhase = 'setup' | 'word-distribution' | 'description' | 'discussion' | 'voting' | 'results' | 'final-results';
 
 export default function GameFlow() {
-  const { playerCount, playerNames } = useLocalSearchParams();
+  const { gameId, playerCount, playerNames, playerIds } = useLocalSearchParams();
   
   const [players, setPlayers] = useState<Player[]>([]);
-  const [currentPhase, setCurrentPhase] = useState<GamePhase>('setup');
+  const [currentPhase, setCurrentPhase] = useState<GamePhase>('word-distribution');
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [currentRound, setCurrentRound] = useState(1);
   const [currentDescriptionIndex, setCurrentDescriptionIndex] = useState(0);
   const [wordRevealed, setWordRevealed] = useState(false);
-  const [votingResults, setVotingResults] = useState<{[key: number]: number}>({});
+  const [votingResults, setVotingResults] = useState<{[key: string]: number}>({});
   const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
   const [gameWinner, setGameWinner] = useState<string>('');
+  const [wordPair, setWordPair] = useState<WordPair | null>(null);
+  const [startTime] = useState(new Date());
+  const [mrWhiteGuess, setMrWhiteGuess] = useState('');
+  const [showMrWhiteGuess, setShowMrWhiteGuess] = useState(false);
+  const [discussionTimer, setDiscussionTimer] = useState(0);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
   
   useEffect(() => {
     initializeGame();
   }, []);
 
-  const initializeGame = () => {
-    const names = JSON.parse(playerNames as string);
-    const count = parseInt(playerCount as string);
-    
-    // Get random word pair
-    const wordPair = WORD_PAIRS[Math.floor(Math.random() * WORD_PAIRS.length)];
-    
-    // Determine roles
-    const roles = getRoles(count);
-    const shuffledRoles = shuffleArray([...roles]);
-    
-    const newPlayers: Player[] = names.map((name: string, index: number) => ({
-      id: index,
-      name,
-      role: shuffledRoles[index],
-      word: shuffledRoles[index] === 'civilian' ? wordPair.civilian : 
-            shuffledRoles[index] === 'undercover' ? wordPair.undercover : '',
-      isAlive: true,
-      points: 0,
-    }));
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTimerRunning && discussionTimer > 0) {
+      interval = setInterval(() => {
+        setDiscussionTimer(prev => {
+          if (prev <= 1) {
+            setIsTimerRunning(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning, discussionTimer]);
 
-    setPlayers(newPlayers);
-    setCurrentPhase('word-distribution');
+  const initializeGame = async () => {
+    try {
+      // Get random word pair from active libraries
+      const selectedWordPair = await GameService.getRandomWordPair();
+      if (!selectedWordPair) {
+        Alert.alert('Error', 'No active word libraries found. Please enable some word libraries in settings.');
+        router.back();
+        return;
+      }
+      
+      setWordPair(selectedWordPair);
+      
+      // Parse player data
+      const names = JSON.parse(playerNames as string);
+      
+      // Assign roles using the service
+      const assignedPlayers = GameService.assignRoles(names, selectedWordPair);
+      setPlayers(assignedPlayers);
+      
+    } catch (error) {
+      Alert.alert('Error', 'Failed to initialize game. Please try again.');
+      console.error('Game initialization error:', error);
+      router.back();
+    }
   };
 
-  const getRoles = (count: number) => {
-    const roles: ('civilian' | 'undercover' | 'mrwhite')[] = [];
+  const saveGameRound = async (eliminatedPlayerId: string, voteResults: {[key: string]: number}, mrWhiteGuess?: string, mrWhiteGuessCorrect?: boolean) => {
+    try {
+      await GameService.saveGameRound(
+        gameId as string,
+        currentRound,
+        eliminatedPlayerId,
+        voteResults,
+        mrWhiteGuess,
+        mrWhiteGuessCorrect
+      );
+    } catch (error) {
+      console.error('Error saving game round:', error);
+    }
+  };
+
+  const saveGameResult = async (winner: string, finalPlayers: Player[]) => {
+    try {
+      const duration = Math.round((new Date().getTime() - startTime.getTime()) / 60000);
+      const playerIdsArray = JSON.parse(playerIds as string);
+      
+      const gameResult = {
+        winner,
+        players: finalPlayers.map(p => ({
+          name: p.name,
+          role: p.role,
+          word: p.word,
+          points: p.points,
+          wasWinner: (winner === 'Civilians' && p.role === 'civilian') ||
+                    (winner === 'Undercover' && p.role === 'undercover') ||
+                    (winner === 'Mr. White' && p.role === 'mrwhite') ||
+                    (winner === 'Impostors' && (p.role === 'undercover' || p.role === 'mrwhite')),
+        })),
+        totalRounds: currentRound,
+        duration,
+      };
+      
+      if (wordPair) {
+        await GameService.saveGameResult(gameId as string, gameResult, wordPair, playerIdsArray);
+      }
+    } catch (error) {
+      console.error('Error saving game result:', error);
+    }
+  };
+
+  const handleMrWhiteElimination = (player: Player) => {
+    setEliminatedPlayer(player);
+    setShowMrWhiteGuess(true);
+  };
+
+  const submitMrWhiteGuess = async () => {
+    if (!eliminatedPlayer || !wordPair) return;
     
-    if (count <= 4) {
-      roles.push(...Array(count - 1).fill('civilian'));
-      roles.push('undercover');
-    } else if (count <= 6) {
-      roles.push(...Array(count - 2).fill('civilian'));
-      roles.push('undercover', 'mrwhite');
-    } else if (count <= 8) {
-      roles.push(...Array(count - 3).fill('civilian'));
-      roles.push('undercover', 'undercover', 'mrwhite');
-    } else if (count <= 12) {
-      roles.push(...Array(count - 4).fill('civilian'));
-      roles.push('undercover', 'undercover', 'mrwhite', 'mrwhite');
+    const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
+    
+    // Save round data
+    await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
+    
+    if (isCorrect) {
+      // Mr. White wins!
+      const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
+      setPlayers(finalPlayers);
+      setGameWinner('Mr. White');
+      await saveGameResult('Mr. White', finalPlayers);
+      setCurrentPhase('final-results');
     } else {
-      roles.push(...Array(count - 5).fill('civilian'));
-      roles.push('undercover', 'undercover', 'undercover', 'mrwhite', 'mrwhite');
+      // Mr. White is eliminated, continue game
+      const newPlayers = players.map(p => 
+        p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
+      );
+      setPlayers(newPlayers);
+      
+      // Check win conditions
+      const { winner, isGameOver } = GameService.checkWinCondition(newPlayers);
+      if (isGameOver && winner) {
+        const finalPlayers = GameService.calculatePoints(newPlayers, winner);
+        setPlayers(finalPlayers);
+        setGameWinner(winner);
+        await saveGameResult(winner, finalPlayers);
+        setCurrentPhase('final-results');
+      } else {
+        setCurrentPhase('elimination-result');
+      }
     }
     
-    return roles;
+    setShowMrWhiteGuess(false);
+    setMrWhiteGuess('');
   };
 
-  const shuffleArray = (array: any[]) => {
-    const newArray = [...array];
-    for (let i = newArray.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
-    }
-    return newArray;
+  const startDiscussionTimer = () => {
+    setDiscussionTimer(120); // 2 minutes
+    setIsTimerRunning(true);
   };
+
+  const stopDiscussionTimer = () => {
+    setIsTimerRunning(false);
+    setDiscussionTimer(0);
 
   const nextWordDistribution = () => {
     if (currentPlayerIndex < players.length - 1) {
@@ -142,7 +194,7 @@ export default function GameFlow() {
     setVotingResults({});
   };
 
-  const castVote = (votedForId: number) => {
+  const castVote = async (votedForId: string) => {
     const newResults = { ...votingResults };
     newResults[votedForId] = (newResults[votedForId] || 0) + 1;
     setVotingResults(newResults);
@@ -153,26 +205,34 @@ export default function GameFlow() {
     if (totalVotes >= alivePlayers.length) {
       // Determine who got the most votes
       const maxVotes = Math.max(...Object.values(newResults));
-      const mostVoted = Object.entries(newResults)
+      const mostVotedIds = Object.entries(newResults)
         .filter(([_, votes]) => votes === maxVotes)
-        .map(([id, _]) => parseInt(id));
+        .map(([id, _]) => id);
       
-      if (mostVoted.length === 1) {
-        const eliminatedId = mostVoted[0];
+      if (mostVotedIds.length === 1) {
+        const eliminatedId = mostVotedIds[0];
         const eliminated = players.find(p => p.id === eliminatedId);
         if (eliminated) {
-          setEliminatedPlayer(eliminated);
-          eliminatePlayer(eliminatedId);
+          if (eliminated.role === 'mrwhite') {
+            handleMrWhiteElimination(eliminated);
+          } else {
+            setEliminatedPlayer(eliminated);
+            await eliminatePlayer(eliminatedId);
+          }
         }
       } else {
         // Tie - revote or random elimination
         Alert.alert('Tie Vote', 'There was a tie in voting. Randomly eliminating one of the tied players.', [
-          { text: 'OK', onPress: () => {
-            const randomEliminated = mostVoted[Math.floor(Math.random() * mostVoted.length)];
+          { text: 'OK', onPress: async () => {
+            const randomEliminated = mostVotedIds[Math.floor(Math.random() * mostVotedIds.length)];
             const eliminated = players.find(p => p.id === randomEliminated);
             if (eliminated) {
-              setEliminatedPlayer(eliminated);
-              eliminatePlayer(randomEliminated);
+              if (eliminated.role === 'mrwhite') {
+                handleMrWhiteElimination(eliminated);
+              } else {
+                setEliminatedPlayer(eliminated);
+                await eliminatePlayer(randomEliminated);
+              }
             }
           }}
         ]);
@@ -180,38 +240,27 @@ export default function GameFlow() {
     }
   };
 
-  const eliminatePlayer = (playerId: number) => {
+  const eliminatePlayer = async (playerId: string) => {
     const newPlayers = players.map(p => 
-      p.id === playerId ? { ...p, isAlive: false } : p
+      p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
     );
     setPlayers(newPlayers);
     
-    // Check win conditions
-    const alivePlayers = newPlayers.filter(p => p.isAlive);
-    const aliveCivilians = alivePlayers.filter(p => p.role === 'civilian');
-    const aliveUndercovers = alivePlayers.filter(p => p.role === 'undercover');
-    const aliveMrWhites = alivePlayers.filter(p => p.role === 'mrwhite');
+    // Save round data
+    await saveGameRound(playerId, votingResults);
     
-    if (aliveUndercovers.length === 0 && aliveMrWhites.length === 0) {
-      // Civilians win
-      setGameWinner('Civilians');
-      const updatedPlayers = newPlayers.map(p => 
-        p.role === 'civilian' ? { ...p, points: p.points + 2 } : p
-      );
-      setPlayers(updatedPlayers);
-      setCurrentPhase('final-results');
-    } else if (aliveCivilians.length <= aliveUndercovers.length) {
-      // Undercovers win
-      setGameWinner('Undercover');
-      const updatedPlayers = newPlayers.map(p => 
-        p.role === 'undercover' ? { ...p, points: p.points + 10 } : p
-      );
-      setPlayers(updatedPlayers);
+    // Check win conditions
+    const { winner, isGameOver } = GameService.checkWinCondition(newPlayers);
+    if (isGameOver && winner) {
+      const finalPlayers = GameService.calculatePoints(newPlayers, winner);
+      setPlayers(finalPlayers);
+      setGameWinner(winner);
+      await saveGameResult(winner, finalPlayers);
       setCurrentPhase('final-results');
     } else {
       // Continue game
       setTimeout(() => {
-        setCurrentPhase('results');
+        setCurrentPhase('elimination-result');
       }, 1000);
     }
   };
@@ -222,18 +271,23 @@ export default function GameFlow() {
     setCurrentDescriptionIndex(0);
     setEliminatedPlayer(null);
     setVotingResults({});
+    stopDiscussionTimer();
   };
 
   const restartGame = () => {
-    setCurrentPhase('setup');
+    router.back();
+  };
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const shuffleDescriptionOrder = () => {
+    // Randomize description order each round
     setCurrentPlayerIndex(0);
-    setCurrentRound(1);
     setCurrentDescriptionIndex(0);
-    setWordRevealed(false);
-    setVotingResults({});
-    setEliminatedPlayer(null);
-    setGameWinner('');
-    initializeGame();
   };
 
   const getRoleColor = (role: string) => {
@@ -324,7 +378,7 @@ export default function GameFlow() {
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Description Phase</Text>
-          <Text style={styles.subtitle}>Round {currentRound}</Text>
+          <Text style={styles.subtitle}>Round {currentRound} • Turn {currentDescriptionIndex + 1}/{alivePlayers.length}</Text>
         </View>
 
         <View style={styles.centerContent}>
@@ -335,8 +389,8 @@ export default function GameFlow() {
           <View style={styles.currentTurnCard}>
             <Text style={styles.currentTurnText}>Current Turn:</Text>
             <Text style={styles.currentPlayerName}>{currentPlayer?.name}</Text>
-            <Text style={styles.turnCounter}>
-              {currentDescriptionIndex + 1} of {alivePlayers.length}
+            <Text style={styles.descriptionHint}>
+              Give a short, clever description of your word
             </Text>
           </View>
 
@@ -364,19 +418,42 @@ export default function GameFlow() {
 
         <View style={styles.centerContent}>
           <Text style={styles.phaseInstructions}>
-            Discuss and analyze the descriptions. Who seems suspicious?
+            Analyze the descriptions and identify suspicious players
           </Text>
           
           <View style={styles.discussionCard}>
-            <Text style={styles.discussionText}>
-              💭 Talk freely about the descriptions you heard
-            </Text>
-            <Text style={styles.discussionText}>
-              🔍 Look for inconsistencies and suspicious answers
-            </Text>
-            <Text style={styles.discussionText}>
-              🤔 Decide who to vote for elimination
-            </Text>
+            <View style={styles.discussionHeader}>
+              <MessageCircle size={20} color="#8B5CF6" />
+              <Text style={styles.discussionTitle}>Discussion Time</Text>
+              {discussionTimer > 0 && (
+                <View style={styles.timerContainer}>
+                  <Timer size={16} color="#F59E0B" />
+                  <Text style={styles.timerText}>{formatTime(discussionTimer)}</Text>
+                </View>
+              )}
+            </View>
+            
+            <View style={styles.discussionPoints}>
+              <Text style={styles.discussionText}>
+                💭 Analyze each player's description
+              </Text>
+              <Text style={styles.discussionText}>
+                🔍 Look for inconsistencies or vague answers
+              </Text>
+              <Text style={styles.discussionText}>
+                🤔 Decide who seems most suspicious
+              </Text>
+            </View>
+            
+            {!isTimerRunning && discussionTimer === 0 && (
+              <TouchableOpacity
+                style={styles.timerButton}
+                onPress={startDiscussionTimer}
+              >
+                <Timer size={16} color="white" />
+                <Text style={styles.timerButtonText}>Start 2min Timer</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           <TouchableOpacity
@@ -403,7 +480,7 @@ export default function GameFlow() {
 
         <ScrollView style={styles.votingContainer}>
           <Text style={styles.votingInstructions}>
-            Vote to eliminate one player:
+            Vote to eliminate the most suspicious player:
           </Text>
           
           {alivePlayers.map((player) => (
@@ -411,10 +488,9 @@ export default function GameFlow() {
               key={player.id}
               style={[
                 styles.voteButton,
-                { opacity: votingResults[player.id] ? 0.5 : 1 }
+                { opacity: votingResults[player.id] > 0 ? 0.7 : 1 }
               ]}
               onPress={() => castVote(player.id)}
-              disabled={!!votingResults[player.id]}
             >
               <Text style={styles.votePlayerName}>{player.name}</Text>
               <Text style={styles.voteCount}>
@@ -427,7 +503,7 @@ export default function GameFlow() {
     );
   }
 
-  if (currentPhase === 'results') {
+  if (currentPhase === 'elimination-result') {
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
@@ -441,9 +517,21 @@ export default function GameFlow() {
             <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
             <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
               {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-            </Text>
-            {eliminatedPlayer?.word && (
-              <Text style={styles.eliminatedWord}>Word: {eliminatedPlayer.word}</Text>
+              <>
+                <Text style={styles.wordText}>{currentPlayer.word}</Text>
+                <Text style={styles.wordHint}>
+                  Describe this word without saying it directly
+                </Text>
+              </>
+            {eliminatedPlayer?.word ? (
+              <>
+                <Text style={styles.noWordText}>You are Mr. White</Text>
+                <Text style={styles.mrWhiteHint}>
+                  Listen carefully and try to deduce the word!
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.eliminatedWord}>Had no word (Mr. White)</Text>
             )}
           </View>
 
@@ -454,6 +542,45 @@ export default function GameFlow() {
             <Text style={styles.nextButtonText}>Continue Game</Text>
             <ArrowRight size={16} color="white" />
           </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  // Mr. White Guess Modal
+  if (showMrWhiteGuess) {
+    return (
+      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Mr. White's Last Chance</Text>
+          <Text style={styles.subtitle}>{eliminatedPlayer?.name} was eliminated</Text>
+        </View>
+
+        <View style={styles.centerContent}>
+          <Text style={styles.mrWhiteGuessInstructions}>
+            As Mr. White, you can win by correctly guessing the Civilian word!
+          </Text>
+          
+          <View style={styles.guessCard}>
+            <Text style={styles.guessLabel}>What is the Civilian word?</Text>
+            <TextInput
+              style={styles.guessInput}
+              value={mrWhiteGuess}
+              onChangeText={setMrWhiteGuess}
+              placeholder="Enter your guess..."
+              placeholderTextColor="#9CA3AF"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            
+            <TouchableOpacity
+              style={styles.submitGuessButton}
+              onPress={submitMrWhiteGuess}
+              disabled={!mrWhiteGuess.trim()}
+            >
+              <Text style={styles.submitGuessText}>Submit Guess</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
     );
@@ -470,6 +597,21 @@ export default function GameFlow() {
         <ScrollView style={styles.finalResultsContainer}>
           <Text style={styles.winnerText}>{gameWinner} Win!</Text>
           
+          {wordPair && (
+            <View style={styles.wordRevealCard}>
+              <Text style={styles.wordRevealTitle}>The Words Were:</Text>
+              <Text style={styles.wordRevealText}>
+                👥 Civilians: "{wordPair.civilian_word}"
+              </Text>
+              <Text style={styles.wordRevealText}>
+                🕵️ Undercover: "{wordPair.undercover_word}"
+              </Text>
+              <Text style={styles.wordRevealCategory}>
+                Category: {wordPair.category}
+              </Text>
+            </View>
+          )}
+          
           <View style={styles.playersResultsList}>
             {players.map((player) => (
               <View key={player.id} style={styles.playerResultCard}>
@@ -478,8 +620,15 @@ export default function GameFlow() {
                   <Text style={[styles.playerResultRole, { color: getRoleColor(player.role) }]}>
                     {getRoleEmoji(player.role)} {getRoleName(player.role)}
                   </Text>
-                  {player.word && (
+                  {player.word ? (
                     <Text style={styles.playerResultWord}>"{player.word}"</Text>
+                  ) : (
+                    <Text style={styles.playerResultWord}>No word assigned</Text>
+                  )}
+                  {player.eliminationRound && (
+                    <Text style={styles.eliminationInfo}>
+                      Eliminated Round {player.eliminationRound}
+                    </Text>
                   )}
                 </View>
                 <Text style={styles.playerResultPoints}>+{player.points}</Text>
@@ -494,7 +643,7 @@ export default function GameFlow() {
             onPress={restartGame}
           >
             <RotateCcw size={16} color="white" />
-            <Text style={styles.restartButtonText}>Play Again</Text>
+            <Text style={styles.restartButtonText}>New Game</Text>
           </TouchableOpacity>
           
           <TouchableOpacity
@@ -579,11 +728,23 @@ const styles = StyleSheet.create({
     color: '#F3F4F6',
     textAlign: 'center',
   },
-  noWordText: {
-    fontSize: 18,
+  wordHint: {
+    fontSize: 14,
     color: '#9CA3AF',
-    fontStyle: 'italic',
     textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  noWordText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+    textAlign: 'center',
+  },
+  mrWhiteHint: {
+    fontSize: 14,
+    color: '#F59E0B',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   nextButton: {
     backgroundColor: '#8B5CF6',
@@ -618,16 +779,62 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9CA3AF',
   },
-  turnCounter: {
+  descriptionHint: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#8B5CF6',
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
   discussionCard: {
     backgroundColor: '#374151',
     padding: 24,
     borderRadius: 12,
-    gap: 16,
     marginBottom: 32,
+    gap: 16,
+  },
+  discussionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  discussionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  timerText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+  },
+  discussionPoints: {
+    gap: 12,
+  },
+  timerButton: {
+    backgroundColor: '#8B5CF6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  timerButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   discussionText: {
     fontSize: 16,
@@ -690,6 +897,47 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     fontStyle: 'italic',
   },
+  mrWhiteGuessInstructions: {
+    fontSize: 18,
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  guessCard: {
+    backgroundColor: '#374151',
+    padding: 24,
+    borderRadius: 12,
+    gap: 16,
+    minWidth: 280,
+  },
+  guessLabel: {
+    fontSize: 16,
+    color: '#F3F4F6',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  guessInput: {
+    backgroundColor: '#1F2937',
+    color: '#F3F4F6',
+    padding: 16,
+    borderRadius: 8,
+    fontSize: 18,
+    textAlign: 'center',
+    borderWidth: 2,
+    borderColor: '#F59E0B',
+  },
+  submitGuessButton: {
+    backgroundColor: '#F59E0B',
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  submitGuessText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   finalResultsContainer: {
     flex: 1,
     padding: 20,
@@ -700,6 +948,30 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     textAlign: 'center',
     marginBottom: 32,
+  },
+  wordRevealCard: {
+    backgroundColor: '#374151',
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  wordRevealTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+    marginBottom: 8,
+  },
+  wordRevealText: {
+    fontSize: 16,
+    color: '#F3F4F6',
+    fontWeight: '600',
+  },
+  wordRevealCategory: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
   playersResultsList: {
     gap: 12,
@@ -729,6 +1001,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
     fontStyle: 'italic',
+  },
+  eliminationInfo: {
+    fontSize: 10,
+    color: '#6B7280',
   },
   playerResultPoints: {
     fontSize: 20,

@@ -1,13 +1,14 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Minus, Play, ArrowLeft } from 'lucide-react-native';
 import { router } from 'expo-router';
+import { GameService } from '@/services/gameService';
 
 export default function GameSetupScreen() {
   const [playerCount, setPlayerCount] = useState(6);
   const [playerNames, setPlayerNames] = useState<string[]>(['', '', '', '', '', '']);
-  const [gameStarted, setGameStarted] = useState(false);
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
 
   const updatePlayerCount = (count: number) => {
     const newCount = Math.max(3, Math.min(20, count));
@@ -32,7 +33,7 @@ export default function GameSetupScreen() {
     setPlayerNames(newNames);
   };
 
-  const startGame = () => {
+  const startGame = async () => {
     // Check if all players have names
     const hasEmptyNames = playerNames.some(name => name.trim() === '');
     if (hasEmptyNames) {
@@ -47,25 +48,35 @@ export default function GameSetupScreen() {
       return;
     }
 
-    setGameStarted(true);
-    router.push({
-      pathname: '/game-flow',
-      params: {
-        playerCount: playerCount.toString(),
-        playerNames: JSON.stringify(playerNames),
-      },
-    });
+    try {
+      setIsCreatingGame(true);
+      
+      // Create player records in database
+      const playerIds = await Promise.all(
+        playerNames.map(name => GameService.createOrUpdatePlayer(name.trim()))
+      );
+      
+      // Create game record
+      const gameId = await GameService.createGame(playerCount);
+      
+      router.push({
+        pathname: '/game-flow',
+        params: {
+          gameId,
+          playerCount: playerCount.toString(),
+          playerNames: JSON.stringify(playerNames),
+          playerIds: JSON.stringify(playerIds),
+        },
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start game. Please try again.');
+      console.error('Game creation error:', error);
+    } finally {
+      setIsCreatingGame(false);
+    }
   };
 
-  const getRoleDistribution = () => {
-    if (playerCount <= 4) return { civilians: playerCount - 1, undercover: 1, mrWhite: 0 };
-    if (playerCount <= 6) return { civilians: playerCount - 2, undercover: 1, mrWhite: 1 };
-    if (playerCount <= 8) return { civilians: playerCount - 3, undercover: 2, mrWhite: 1 };
-    if (playerCount <= 12) return { civilians: playerCount - 4, undercover: 2, mrWhite: 2 };
-    return { civilians: playerCount - 5, undercover: 3, mrWhite: 2 };
-  };
-
-  const roles = getRoleDistribution();
+  const roles = GameService.getRoleDistribution(playerCount);
 
   return (
     <LinearGradient
@@ -140,13 +151,16 @@ export default function GameSetupScreen() {
       <TouchableOpacity 
         style={styles.startButton}
         onPress={startGame}
+        disabled={isCreatingGame}
       >
         <LinearGradient
           colors={['#8B5CF6', '#7C3AED']}
           style={styles.startButtonGradient}
         >
           <Play size={20} color="white" />
-          <Text style={styles.startButtonText}>Start Game</Text>
+          <Text style={styles.startButtonText}>
+            {isCreatingGame ? 'Creating Game...' : 'Start Game'}
+          </Text>
         </LinearGradient>
       </TouchableOpacity>
     </LinearGradient>

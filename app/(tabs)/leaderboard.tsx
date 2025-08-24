@@ -1,71 +1,14 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState } from 'react';
-import { Trophy, Award, Star, Medal } from 'lucide-react-native';
+import { useState, useEffect } from 'react';
+import { Trophy, Award, Star, Medal, Calendar, Users, Clock } from 'lucide-react-native';
+import { useLeaderboard } from '@/hooks/useGameData';
 
-interface ScoreRecord {
-  id: number;
-  playerName: string;
-  role: 'civilian' | 'undercover' | 'mrwhite';
-  points: number;
-  date: string;
-  gameId: string;
-}
 
 export default function LeaderboardScreen() {
-  // Mock data - in a real app, this would come from persistent storage
-  const [scores] = useState<ScoreRecord[]>([
-    {
-      id: 1,
-      playerName: "Alice",
-      role: "undercover",
-      points: 10,
-      date: "2024-01-15",
-      gameId: "game-001"
-    },
-    {
-      id: 2,
-      playerName: "Bob",
-      role: "civilian",
-      points: 8,
-      date: "2024-01-15",
-      gameId: "game-001"
-    },
-    {
-      id: 3,
-      playerName: "Charlie",
-      role: "mrwhite",
-      points: 6,
-      date: "2024-01-14",
-      gameId: "game-002"
-    },
-    {
-      id: 4,
-      playerName: "Diana",
-      role: "civilian",
-      points: 6,
-      date: "2024-01-14",
-      gameId: "game-002"
-    },
-    {
-      id: 5,
-      playerName: "Alice",
-      role: "civilian",
-      points: 4,
-      date: "2024-01-13",
-      gameId: "game-003"
-    },
-    {
-      id: 6,
-      playerName: "Eve",
-      role: "undercover",
-      points: 10,
-      date: "2024-01-13",
-      gameId: "game-003"
-    },
-  ]);
-
+  const { topPlayers, recentGames, loading, error } = useLeaderboard();
   const [sortBy, setSortBy] = useState<'points' | 'recent'>('points');
+
 
   const getRoleColor = (role: string) => {
     switch (role) {
@@ -94,26 +37,9 @@ export default function LeaderboardScreen() {
     }
   };
 
-  const getPlayerTotals = () => {
-    const totals: { [key: string]: number } = {};
-    scores.forEach(score => {
-      totals[score.playerName] = (totals[score.playerName] || 0) + score.points;
-    });
-    
-    return Object.entries(totals)
-      .map(([name, total]) => ({ name, total }))
-      .sort((a, b) => b.total - a.total);
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString();
   };
-
-  const sortedScores = [...scores].sort((a, b) => {
-    if (sortBy === 'points') {
-      return b.points - a.points;
-    } else {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    }
-  });
-
-  const playerTotals = getPlayerTotals();
 
   const getRankIcon = (index: number) => {
     switch (index) {
@@ -123,6 +49,21 @@ export default function LeaderboardScreen() {
       default: return <Star size={16} color="#6B7280" />;
     }
   };
+
+  const getWinRate = (player: any) => {
+    if (player.games_played === 0) return 0;
+    return Math.round((player.games_won / player.games_played) * 100);
+  };
+
+  if (loading) {
+    return (
+      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading leaderboard...</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient
@@ -158,15 +99,20 @@ export default function LeaderboardScreen() {
         {sortBy === 'points' ? (
           <>
             <Text style={styles.sectionTitle}>Overall Rankings</Text>
-            {playerTotals.map((player, index) => (
-              <View key={player.name} style={styles.rankCard}>
+            {topPlayers.map((player, index) => (
+              <View key={player.id} style={styles.rankCard}>
                 <View style={styles.rankInfo}>
                   <View style={styles.rankIconContainer}>
                     {getRankIcon(index)}
                   </View>
                   <View style={styles.playerInfo}>
                     <Text style={styles.playerName}>#{index + 1} {player.name}</Text>
-                    <Text style={styles.totalPoints}>Total Points: {player.total}</Text>
+                    <Text style={styles.totalPoints}>{player.total_points} points</Text>
+                    <View style={styles.playerStats}>
+                      <Text style={styles.statText}>
+                        {player.games_played} games • {getWinRate(player)}% win rate
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -175,25 +121,41 @@ export default function LeaderboardScreen() {
         ) : (
           <>
             <Text style={styles.sectionTitle}>Recent Game Results</Text>
-            {sortedScores.map((score, index) => (
-              <View key={score.id} style={styles.scoreCard}>
+            {recentGames.map((game) => (
+              <View key={game.id} style={styles.gameCard}>
                 <View style={styles.scoreHeader}>
-                  <Text style={styles.playerName}>{score.playerName}</Text>
-                  <Text style={styles.scoreDate}>{score.date}</Text>
+                  <View style={styles.gameInfo}>
+                    <Users size={16} color="#8B5CF6" />
+                    <Text style={styles.gamePlayerCount}>{game.player_count} players</Text>
+                  </View>
+                  <Text style={styles.scoreDate}>{formatDate(game.completed_at)}</Text>
                 </View>
                 
                 <View style={styles.scoreDetails}>
-                  <Text style={[styles.roleText, { color: getRoleColor(score.role) }]}>
-                    {getRoleEmoji(score.role)} {getRoleName(score.role)}
+                  <Text style={styles.winnerText}>
+                    🏆 {game.winner_role} Victory
                   </Text>
-                  <Text style={styles.pointsEarned}>+{score.points} pts</Text>
+                  <View style={styles.gameDuration}>
+                    <Clock size={12} color="#9CA3AF" />
+                    <Text style={styles.durationText}>
+                      {game.duration_minutes || 0}min • {game.total_rounds} rounds
+                    </Text>
+                  </View>
                 </View>
+                
+                {game.word_pair_used && (
+                  <View style={styles.wordPairUsed}>
+                    <Text style={styles.wordPairText}>
+                      Words: {game.word_pair_used.civilian} vs {game.word_pair_used.undercover}
+                    </Text>
+                  </View>
+                )}
               </View>
             ))}
           </>
         )}
 
-        {scores.length === 0 && (
+        {(sortBy === 'points' ? topPlayers : recentGames).length === 0 && (
           <View style={styles.emptyState}>
             <Trophy size={48} color="#4B5563" />
             <Text style={styles.emptyStateTitle}>No Games Played Yet</Text>
@@ -282,6 +244,13 @@ const styles = StyleSheet.create({
   playerInfo: {
     flex: 1,
   },
+  playerStats: {
+    marginTop: 4,
+  },
+  statText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
   playerName: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -293,7 +262,7 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontWeight: '600',
   },
-  scoreCard: {
+  gameCard: {
     backgroundColor: '#374151',
     padding: 16,
     borderRadius: 12,
@@ -307,23 +276,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  gameInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  gamePlayerCount: {
+    fontSize: 14,
+    color: '#8B5CF6',
+    fontWeight: '600',
+  },
   scoreDate: {
     fontSize: 12,
     color: '#9CA3AF',
   },
   scoreDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
   },
-  roleText: {
+  winnerText: {
     fontSize: 14,
-    fontWeight: '600',
-  },
-  pointsEarned: {
-    fontSize: 16,
-    fontWeight: 'bold',
     color: '#F59E0B',
+    fontWeight: 'bold',
+  },
+  gameDuration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  durationText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  wordPairUsed: {
+    backgroundColor: '#1F2937',
+    padding: 8,
+    borderRadius: 6,
+  },
+  wordPairText: {
+    fontSize: 12,
+    color: '#D1D5DB',
+    fontStyle: 'italic',
   },
   emptyState: {
     flex: 1,
@@ -344,5 +337,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     paddingHorizontal: 40,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#9CA3AF',
+    fontSize: 16,
   },
 });
