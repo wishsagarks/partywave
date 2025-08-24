@@ -565,10 +565,6 @@ export default function GameFlow() {
       </LinearGradient>
     );
   }
-          
-      </LinearGradient>
-    );
-  }
 
   if (currentPhase === 'elimination-result') {
     return (
@@ -582,11 +578,9 @@ export default function GameFlow() {
           <Text style={styles.eliminatedText}>Player Eliminated:</Text>
           <View style={styles.eliminatedCard}>
             <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
-            {(eliminatedPlayer?.role === 'undercover' || eliminatedPlayer?.role === 'mrwhite') && (
-              <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
-                {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-              </Text>
-            )}
+            <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
+              {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -926,8 +920,8 @@ const styles = StyleSheet.create({
   },
   votedConfirmation: {
     backgroundColor: '#374151',
-    margin: 20,
     padding: 16,
+    margin: 20,
     borderRadius: 12,
     alignItems: 'center',
     gap: 8,
@@ -940,7 +934,6 @@ const styles = StyleSheet.create({
   waitingText: {
     fontSize: 14,
     color: '#9CA3AF',
-    fontStyle: 'italic',
   },
   eliminatedText: {
     fontSize: 18,
