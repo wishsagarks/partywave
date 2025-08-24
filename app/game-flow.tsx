@@ -148,6 +148,12 @@ export default function GameFlow() {
     }
   };
 
+  const resetVotingState = () => {
+    setVotingResults({});
+    setCurrentVoterIndex(0);
+    setIndividualVotes({});
+  };
+
   const handleMrWhiteElimination = (player: Player) => {
     setEliminatedPlayer(player);
     setShowMrWhiteGuess(true);
@@ -238,6 +244,9 @@ export default function GameFlow() {
     }
   };
 
+  const startVoting = () => {
+    resetVotingState();
+    setCurrentPhase('voting');
   };
 
   const castVote = (votedForId: string) => {
@@ -346,13 +355,6 @@ export default function GameFlow() {
     }
   };
 
-  // Add a function to reset voting state when starting a new round
-  const resetVotingState = () => {
-    setVotingResults({});
-    setCurrentVoterIndex(0);
-    setIndividualVotes({});
-  };
-
   const eliminatePlayer = async (playerId: string) => {
     const newPlayers = players.map(p => 
       p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
@@ -371,14 +373,8 @@ export default function GameFlow() {
       await saveGameResult(winner, finalPlayers);
       setCurrentPhase('final-results');
     } else {
-      // Continue game
+      // Continue game - show round results first
       showRoundResults(newPlayers);
-      setTimeout(() => {
-        setShowRoundLeaderboard(false);
-        setTimeout(() => {
-          setCurrentPhase('elimination-result');
-        }, 500);
-      }, 1000);
     }
   };
 
@@ -390,7 +386,7 @@ export default function GameFlow() {
     setDescriptionOrder(order);
     setCurrentDescriptionIndex(0);
     setEliminatedPlayer(null);
-    resetVotingState(); // Use the new reset function
+    resetVotingState();
     stopDiscussionTimer();
   };
 
@@ -492,8 +488,6 @@ export default function GameFlow() {
   }
 
   if (currentPhase === 'description') {
-    const currentPlayer = descriptionOrder[currentDescriptionIndex];
-    
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
@@ -507,35 +501,24 @@ export default function GameFlow() {
             {descriptionOrder.map((player, index) => (
               <View 
                 key={player.id} 
-                style={[
-                  styles.descriptionOrderItem,
-                  index === currentDescriptionIndex && styles.currentDescriptionItem
-                ]}
+                style={styles.descriptionOrderItem}
               >
-                <Text style={[
-                  styles.descriptionOrderText,
-                  index === currentDescriptionIndex && styles.currentDescriptionText
-                ]}>
+                <Text style={styles.descriptionOrderText}>
                   {index + 1}. {player.name}
                 </Text>
-                {index === currentDescriptionIndex && (
-                  <Text style={styles.currentIndicator}>← Current</Text>
-                )}
               </View>
             ))}
           </View>
           
           <Text style={styles.descriptionHint}>
-            Each player describes their word in one sentence
+            Each player describes their word in one sentence following this order
           </Text>
 
           <TouchableOpacity
             style={styles.nextButton}
-            onPress={currentDescriptionIndex < descriptionOrder.length - 1 ? nextDescription : startDescriptionPhase}
+            onPress={startDescriptionPhase}
           >
-            <Text style={styles.nextButtonText}>
-              {currentDescriptionIndex < descriptionOrder.length - 1 ? 'Next Player' : 'Start Discussion'}
-            </Text>
+            <Text style={styles.nextButtonText}>Start Discussion</Text>
             <ArrowRight size={16} color="white" />
           </TouchableOpacity>
         </View>
@@ -606,7 +589,7 @@ export default function GameFlow() {
   if (currentPhase === 'voting') {
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
-    const hasVoted = individualVotes[currentVoter?.id];
+    const hasVoted = currentVoter ? individualVotes[currentVoter.id] : false;
     
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
@@ -649,13 +632,13 @@ export default function GameFlow() {
           ))}
         </ScrollView>
 
-        {hasVoted && (
+        {hasVoted && currentVoter && (
           <View style={styles.votedConfirmation}>
             <Text style={styles.votedText}>
               ✓ Vote cast for {players.find(p => p.id === individualVotes[currentVoter.id])?.name}
             </Text>
             <Text style={styles.waitingText}>
-              Waiting for {alivePlayers.length - currentVoterIndex - 1} more players to vote...
+              Waiting for {alivePlayers.length - Object.keys(individualVotes).length} more players to vote...
             </Text>
           </View>
         )}
@@ -763,7 +746,20 @@ export default function GameFlow() {
 
         <TouchableOpacity
           style={styles.continueButton}
-          onPress={() => setShowRoundLeaderboard(false)}
+          onPress={() => {
+            setShowRoundLeaderboard(false);
+            // Check if game should continue or end
+            const { winner, isGameOver } = GameService.checkWinCondition(players);
+            if (isGameOver && winner) {
+              const finalPlayers = GameService.calculatePoints(players, winner);
+              setPlayers(finalPlayers);
+              setGameWinner(winner);
+              saveGameResult(winner, finalPlayers);
+              setCurrentPhase('final-results');
+            } else {
+              nextRound();
+            }
+          }}
         >
           <Text style={styles.continueButtonText}>Continue Game</Text>
         </TouchableOpacity>
@@ -965,6 +961,7 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     textAlign: 'center',
     fontStyle: 'italic',
+    marginTop: 16,
   },
   discussionCard: {
     backgroundColor: '#374151',
@@ -1242,31 +1239,20 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
     gap: 8,
+    minWidth: 280,
   },
   descriptionOrderItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
-  },
-  currentDescriptionItem: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#1F2937',
   },
   descriptionOrderText: {
     fontSize: 16,
     color: '#D1D5DB',
     fontWeight: '500',
-  },
-  currentDescriptionText: {
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  currentIndicator: {
-    fontSize: 12,
-    color: 'white',
-    fontWeight: 'bold',
   },
   leaderboardContainer: {
     flex: 1,
