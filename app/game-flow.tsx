@@ -239,13 +239,6 @@ export default function GameFlow() {
   };
 
   const startVoting = () => {
-    setCurrentPhase('voting');
-    setVotingResults({});
-    setCurrentVoterIndex(0);
-    setIndividualVotes({});
-  };
-
-  const castVote = async (votedForId: string) => {
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
     
