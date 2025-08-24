@@ -41,6 +41,7 @@ export interface Database {
       games: {
         Row: {
           id: string
+          game_name: string
           player_count: number
           winner_role: string | null
           total_rounds: number
@@ -51,6 +52,7 @@ export interface Database {
         }
         Insert: {
           id?: string
+          game_name?: string
           player_count: number
           winner_role?: string | null
           total_rounds?: number
@@ -61,6 +63,7 @@ export interface Database {
         }
         Update: {
           id?: string
+          game_name?: string
           player_count?: number
           winner_role?: string | null
           total_rounds?: number

@@ -124,6 +124,7 @@ export default function LeaderboardScreen() {
             {recentGames.map((game) => (
               <View key={game.id} style={styles.gameCard}>
                 <View style={styles.scoreHeader}>
+                  <Text style={styles.gameName}>{game.game_name || 'Unnamed Game'}</Text>
                   <View style={styles.gameInfo}>
                     <Users size={16} color="#8B5CF6" />
                     <Text style={styles.gamePlayerCount}>{game.player_count} players</Text>
@@ -271,10 +272,18 @@ const styles = StyleSheet.create({
     borderColor: '#4B5563',
   },
   scoreHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 8,
     marginBottom: 8,
+  },
+  gameName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  gameInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   gameInfo: {
     flexDirection: 'row',

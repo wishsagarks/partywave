@@ -7,7 +7,7 @@ import { GameService } from '@/services/gameService';
 import { Player, WordPair, GamePhase } from '@/types/game';
 
 export default function GameFlow() {
-  const { gameId, playerCount, playerNames, playerIds } = useLocalSearchParams();
+  const { gameId, playerCount, playerNames, playerIds, customRoles } = useLocalSearchParams();
   
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPhase, setCurrentPhase] = useState<GamePhase>('word-distribution');
@@ -26,6 +26,9 @@ export default function GameFlow() {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
   const [individualVotes, setIndividualVotes] = useState<{[voterId: string]: string}>({});
+  const [showRoundLeaderboard, setShowRoundLeaderboard] = useState(false);
+  const [roundLeaderboard, setRoundLeaderboard] = useState<Player[]>([]);
+  const [descriptionOrder, setDescriptionOrder] = useState<Player[]>([]);
   
   useEffect(() => {
     let isMounted = true;
@@ -51,9 +54,10 @@ export default function GameFlow() {
         // Parse player data
         const names = JSON.parse(playerNames as string);
         const ids = JSON.parse(playerIds as string);
+        const roles = customRoles ? JSON.parse(customRoles as string) : undefined;
         
         // Assign roles using the service
-        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids);
+        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids, roles);
         if (isMounted) {
           setPlayers(assignedPlayers);
         }
@@ -89,6 +93,16 @@ export default function GameFlow() {
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, discussionTimer]);
+
+  const generateDescriptionOrder = (alivePlayers: Player[]) => {
+    // Create a shuffled order for descriptions
+    const shuffled = [...alivePlayers];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
 
   const saveGameRound = async (eliminatedPlayerId: string, voteResults: {[key: string]: number}, mrWhiteGuess?: string, mrWhiteGuessCorrect?: boolean) => {
     try {
@@ -178,6 +192,13 @@ export default function GameFlow() {
     setMrWhiteGuess('');
   };
 
+  const showRoundResults = (updatedPlayers: Player[]) => {
+    // Calculate round points and show leaderboard
+    const leaderboard = [...updatedPlayers].sort((a, b) => b.points - a.points);
+    setRoundLeaderboard(leaderboard);
+    setShowRoundLeaderboard(true);
+  };
+
   const startDiscussionTimer = () => {
     setDiscussionTimer(120); // 2 minutes
     setIsTimerRunning(true);
@@ -195,13 +216,22 @@ export default function GameFlow() {
     } else {
       setCurrentPhase('description');
       setCurrentPlayerIndex(0);
+      const alivePlayers = players.filter(p => p.isAlive);
+      const order = generateDescriptionOrder(alivePlayers);
+      setDescriptionOrder(order);
       setCurrentDescriptionIndex(0);
     }
   };
 
-  const nextDescription = () => {
+  const startDescriptionPhase = () => {
     const alivePlayers = players.filter(p => p.isAlive);
-    if (currentDescriptionIndex < alivePlayers.length - 1) {
+    const order = generateDescriptionOrder(alivePlayers);
+    setDescriptionOrder(order);
+    setCurrentPhase('discussion');
+  };
+
+  const nextDescription = () => {
+    if (currentDescriptionIndex < descriptionOrder.length - 1) {
       setCurrentDescriptionIndex(currentDescriptionIndex + 1);
     } else {
       setCurrentPhase('discussion');
@@ -247,6 +277,24 @@ export default function GameFlow() {
   const processVotingResults = async (results: {[key: string]: number}) => {
     // Determine elimination
     const maxVotes = Math.max(...Object.values(results));
+    
+    // Handle case where everyone has 0 votes (edge case)
+    if (maxVotes === 0) {
+      Alert.alert('No Votes', 'No one received any votes. Randomly eliminating a player.', [
+        { text: 'OK', onPress: async () => {
+          const alivePlayers = players.filter(p => p.isAlive);
+          const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+          if (randomPlayer.role === 'mrwhite') {
+            handleMrWhiteElimination(randomPlayer);
+          } else {
+            setEliminatedPlayer(randomPlayer);
+            await eliminatePlayer(randomPlayer.id);
+          }
+        }}
+      ]);
+      return;
+    }
+    
     const mostVotedIds = Object.entries(results)
       .filter(([_, votes]) => votes === maxVotes)
       .map(([id, _]) => id);
@@ -300,8 +348,12 @@ export default function GameFlow() {
       setCurrentPhase('final-results');
     } else {
       // Continue game
+      showRoundResults(newPlayers);
       setTimeout(() => {
-        setCurrentPhase('elimination-result');
+        setShowRoundLeaderboard(false);
+        setTimeout(() => {
+          setCurrentPhase('elimination-result');
+        }, 500);
       }, 1000);
     }
   };
@@ -309,6 +361,9 @@ export default function GameFlow() {
   const nextRound = () => {
     setCurrentRound(currentRound + 1);
     setCurrentPhase('description');
+    const alivePlayers = players.filter(p => p.isAlive);
+    const order = generateDescriptionOrder(alivePlayers);
+    setDescriptionOrder(order);
     setCurrentDescriptionIndex(0);
     setEliminatedPlayer(null);
     setVotingResults({});
@@ -415,35 +470,49 @@ export default function GameFlow() {
   }
 
   if (currentPhase === 'description') {
-    const alivePlayers = players.filter(p => p.isAlive);
-    const currentPlayer = alivePlayers[currentDescriptionIndex];
+    const currentPlayer = descriptionOrder[currentDescriptionIndex];
     
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Description Phase</Text>
-          <Text style={styles.subtitle}>Round {currentRound} • Turn {currentDescriptionIndex + 1}/{alivePlayers.length}</Text>
+          <Text style={styles.subtitle}>Round {currentRound}</Text>
         </View>
 
         <View style={styles.centerContent}>
-          <Text style={styles.phaseInstructions}>
+          <Text style={styles.sectionTitle}>Description Order:</Text>
+          <View style={styles.descriptionOrderList}>
+            {descriptionOrder.map((player, index) => (
+              <View 
+                key={player.id} 
+                style={[
+                  styles.descriptionOrderItem,
+                  index === currentDescriptionIndex && styles.currentDescriptionItem
+                ]}
+              >
+                <Text style={[
+                  styles.descriptionOrderText,
+                  index === currentDescriptionIndex && styles.currentDescriptionText
+                ]}>
+                  {index + 1}. {player.name}
+                </Text>
+                {index === currentDescriptionIndex && (
+                  <Text style={styles.currentIndicator}>← Current</Text>
+                )}
+              </View>
+            ))}
+          </View>
+          
+          <Text style={styles.descriptionHint}>
             Each player describes their word in one sentence
           </Text>
-          
-          <View style={styles.currentTurnCard}>
-            <Text style={styles.currentTurnText}>Current Turn:</Text>
-            <Text style={styles.currentPlayerName}>{currentPlayer?.name}</Text>
-            <Text style={styles.descriptionHint}>
-              Give a short, clever description of your word
-            </Text>
-          </View>
 
           <TouchableOpacity
             style={styles.nextButton}
-            onPress={nextDescription}
+            onPress={currentDescriptionIndex < descriptionOrder.length - 1 ? nextDescription : startDescriptionPhase}
           >
             <Text style={styles.nextButtonText}>
-              {currentDescriptionIndex < alivePlayers.length - 1 ? 'Next Player' : 'Start Discussion'}
+              {currentDescriptionIndex < descriptionOrder.length - 1 ? 'Next Player' : 'Start Discussion'}
             </Text>
             <ArrowRight size={16} color="white" />
           </TouchableOpacity>
@@ -573,7 +642,7 @@ export default function GameFlow() {
   }
 
   if (currentPhase === 'elimination-result') {
-    const shouldShowRole = eliminatedPlayer?.role === 'undercover' || eliminatedPlayer?.role === 'mrwhite';
+    const shouldShowRole = true; // Always show role after elimination
     
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
@@ -639,6 +708,43 @@ export default function GameFlow() {
             </TouchableOpacity>
           </View>
         </View>
+      </LinearGradient>
+    );
+  }
+
+  // Round Leaderboard Modal
+  if (showRoundLeaderboard) {
+    return (
+      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Round {currentRound} Results</Text>
+          <Text style={styles.subtitle}>Current Standings</Text>
+        </View>
+
+        <ScrollView style={styles.leaderboardContainer}>
+          {roundLeaderboard.map((player, index) => (
+            <View key={player.id} style={styles.leaderboardItem}>
+              <Text style={styles.leaderboardRank}>#{index + 1}</Text>
+              <View style={styles.leaderboardPlayerInfo}>
+                <Text style={styles.leaderboardPlayerName}>{player.name}</Text>
+                <Text style={[styles.leaderboardPlayerRole, { color: getRoleColor(player.role) }]}>
+                  {getRoleEmoji(player.role)} {getRoleName(player.role)}
+                </Text>
+                <Text style={styles.leaderboardPlayerStatus}>
+                  {player.isAlive ? '✅ Alive' : '❌ Eliminated'}
+                </Text>
+              </View>
+              <Text style={styles.leaderboardPoints}>{player.points}pts</Text>
+            </View>
+          ))}
+        </ScrollView>
+
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={() => setShowRoundLeaderboard(false)}
+        >
+          <Text style={styles.continueButtonText}>Continue Game</Text>
+        </TouchableOpacity>
       </LinearGradient>
     );
   }
@@ -1107,5 +1213,90 @@ const styles = StyleSheet.create({
     color: '#D1D5DB',
     fontSize: 16,
     fontWeight: '600',
+  },
+  descriptionOrderList: {
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    gap: 8,
+  },
+  descriptionOrderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  currentDescriptionItem: {
+    backgroundColor: '#8B5CF6',
+  },
+  descriptionOrderText: {
+    fontSize: 16,
+    color: '#D1D5DB',
+    fontWeight: '500',
+  },
+  currentDescriptionText: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  currentIndicator: {
+    fontSize: 12,
+    color: 'white',
+    fontWeight: 'bold',
+  },
+  leaderboardContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  leaderboardItem: {
+    backgroundColor: '#374151',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  leaderboardRank: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+    width: 40,
+  },
+  leaderboardPlayerInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  leaderboardPlayerName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  leaderboardPlayerRole: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  leaderboardPlayerStatus: {
+    fontSize: 10,
+    color: '#9CA3AF',
+  },
+  leaderboardPoints: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  continueButton: {
+    backgroundColor: '#8B5CF6',
+    margin: 20,
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  continueButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
