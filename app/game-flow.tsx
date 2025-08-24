@@ -249,9 +249,16 @@ export default function GameFlow() {
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
     
-    // Safety check to prevent crash
-    if (!currentVoter) {
-      console.error('Current voter is undefined');
+    // Safety checks
+    if (!currentVoter || currentVoterIndex >= alivePlayers.length) {
+      console.error('Invalid voting state - processing results');
+      processVotingResults(votingResults);
+      return;
+    }
+    
+    // Prevent double voting
+    if (individualVotes[currentVoter.id]) {
+      console.log('Player already voted, skipping');
       return;
     }
     
@@ -265,16 +272,31 @@ export default function GameFlow() {
     newResults[votedForId] = (newResults[votedForId] || 0) + 1;
     setVotingResults(newResults);
     
-    // Move to next voter or finish voting
-    if (currentVoterIndex < alivePlayers.length - 1) {
+    // Check if all players have voted
+    const totalVotesCast = Object.keys(newIndividualVotes).length;
+    
+    if (totalVotesCast >= alivePlayers.length) {
+      // All players have voted, process results immediately
+      processVotingResults(newResults);
+    } else if (currentVoterIndex < alivePlayers.length - 1) {
+      // Move to next voter
       setCurrentVoterIndex(currentVoterIndex + 1);
     } else {
-      // All players have voted, process results
+      // Fallback: if we're at the last voter but not all votes are cast
+      // This shouldn't happen but ensures we don't get stuck
       processVotingResults(newResults);
     }
   };
 
   const processVotingResults = async (results: {[key: string]: number}) => {
+    // Ensure we don't process results multiple times
+    if (currentPhase !== 'voting') {
+      return;
+    }
+    
+    // Change phase immediately to prevent multiple processing
+    setCurrentPhase('elimination-result');
+    
     // Determine elimination
     const maxVotes = Math.max(...Object.values(results));
     
@@ -284,11 +306,13 @@ export default function GameFlow() {
         { text: 'OK', onPress: async () => {
           const alivePlayers = players.filter(p => p.isAlive);
           const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
-          if (randomPlayer.role === 'mrwhite') {
+          if (randomPlayer?.role === 'mrwhite') {
             handleMrWhiteElimination(randomPlayer);
           } else {
-            setEliminatedPlayer(randomPlayer);
-            await eliminatePlayer(randomPlayer.id);
+            if (randomPlayer) {
+              setEliminatedPlayer(randomPlayer);
+              await eliminatePlayer(randomPlayer.id);
+            }
           }
         }}
       ]);
@@ -316,7 +340,40 @@ export default function GameFlow() {
         { text: 'OK', onPress: async () => {
           const randomEliminated = mostVotedIds[Math.floor(Math.random() * mostVotedIds.length)];
           const eliminated = players.find(p => p.id === randomEliminated);
-          if (eliminated) {
+          if (eliminated?.role === 'mrwhite') {
+            handleMrWhiteElimination(eliminated);
+          } else if (eliminated) {
+            setEliminatedPlayer(eliminated);
+            await eliminatePlayer(randomEliminated);
+          }
+        }}
+      ]);
+    }
+  };
+
+  // Add a function to reset voting state when starting a new round
+  const resetVotingState = () => {
+    setVotingResults({});
+    setCurrentVoterIndex(0);
+    setIndividualVotes({});
+  };
+
+  const nextRound = () => {
+    setCurrentRound(currentRound + 1);
+    setCurrentPhase('description');
+    const alivePlayers = players.filter(p => p.isAlive);
+    const order = generateDescriptionOrder(alivePlayers);
+    setDescriptionOrder(order);
+    setCurrentDescriptionIndex(0);
+    setEliminatedPlayer(null);
+    resetVotingState(); // Use the new reset function
+    stopDiscussionTimer();
+  };
+
+  const startVoting = () => {
+    resetVotingState(); // Reset voting state before starting
+    setCurrentPhase('voting');
+  };
             if (eliminated.role === 'mrwhite') {
               handleMrWhiteElimination(eliminated);
             } else {
