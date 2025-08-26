@@ -124,10 +124,6 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           if (eliminatedPlayer) {
             setEliminatedPlayer(eliminatedPlayer);
             
-            // Only Mr. White gets to guess if they are the last impostor
-            const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
-            if (eliminatedPlayer.role === 'mrwhite' && remainingUndercover.length === 0) {
-            }
             const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
             if (eliminatedPlayer.role === 'mrwhite' && remainingUndercover.length === 0) {
               await onMrWhiteEliminated(eliminatedPlayer);
