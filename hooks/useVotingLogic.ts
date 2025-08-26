@@ -157,6 +157,10 @@ export const useVotingLogic = (props: VotingLogicProps) => {
       console.error('Error processing voting results:', error);
       setIsProcessingVotes(false);
     }
+    } catch (error) {
+      console.error('Error processing voting results:', error);
+      setIsProcessingVotes(false);
+    }
   }, [
     players,
     setEliminatedPlayer,
