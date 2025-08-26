@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, Tex
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward } from 'lucide-react-native';
 import { GameService } from '@/services/gameService';
 import { Player, WordPair, GamePhase } from '@/types/game';
 
@@ -29,13 +29,13 @@ export default function GameFlow() {
   const [showRoundLeaderboard, setShowRoundLeaderboard] = useState(false);
   const [roundLeaderboard, setRoundLeaderboard] = useState<Player[]>([]);
   const [descriptionOrder, setDescriptionOrder] = useState<Player[]>([]);
+  const [isProcessingVotes, setIsProcessingVotes] = useState(false);
   
   useEffect(() => {
     let isMounted = true;
     
     const initializeGameSafe = async () => {
       try {
-        // Get random word pair from active libraries
         const selectedWordPair = await GameService.getRandomWordPair();
         if (!isMounted) return;
         
@@ -51,12 +51,10 @@ export default function GameFlow() {
           setWordPair(selectedWordPair);
         }
         
-        // Parse player data
         const names = JSON.parse(playerNames as string);
         const ids = JSON.parse(playerIds as string);
         const roles = customRoles ? JSON.parse(customRoles as string) : undefined;
         
-        // Assign roles using the service
         const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids, roles);
         if (isMounted) {
           setPlayers(assignedPlayers);
@@ -95,7 +93,6 @@ export default function GameFlow() {
   }, [isTimerRunning, discussionTimer]);
 
   const generateDescriptionOrder = (alivePlayers: Player[]) => {
-    // Create a shuffled order for descriptions
     const shuffled = [...alivePlayers];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -152,11 +149,19 @@ export default function GameFlow() {
     setVotingResults({});
     setCurrentVoterIndex(0);
     setIndividualVotes({});
+    setIsProcessingVotes(false);
   };
 
-  const handleMrWhiteElimination = (player: Player) => {
+  const handleMrWhiteElimination = async (player: Player) => {
+    console.log('Mr. White eliminated:', player.name);
     setEliminatedPlayer(player);
+    
+    // Save round data first
+    await saveGameRound(player.id, votingResults);
+    
+    // Show Mr. White guess screen
     setShowMrWhiteGuess(true);
+    setCurrentPhase('mr-white-guess');
   };
 
   const submitMrWhiteGuess = async () => {
@@ -164,7 +169,7 @@ export default function GameFlow() {
     
     const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
     
-    // Save round data
+    // Update round data with guess
     await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
     
     if (isCorrect) {
@@ -175,12 +180,10 @@ export default function GameFlow() {
       await saveGameResult('Mr. White', finalPlayers);
       setCurrentPhase('final-results');
     } else {
-      // Mr. White is eliminated and guessed wrong - Civilians win!
+      // Mr. White guessed wrong - Civilians win!
       const newPlayers = players.map(p => 
         p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
       );
-      
-      // Mr. White eliminated and guessed wrong = Civilians win
       const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
       setPlayers(finalPlayers);
       setGameWinner('Civilians');
@@ -192,15 +195,31 @@ export default function GameFlow() {
     setMrWhiteGuess('');
   };
 
+  const skipMrWhiteGuess = async () => {
+    if (!eliminatedPlayer) return;
+    
+    // Mr. White skipped guess - Civilians win!
+    const newPlayers = players.map(p => 
+      p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
+    );
+    const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
+    setPlayers(finalPlayers);
+    setGameWinner('Civilians');
+    await saveGameResult('Civilians', finalPlayers);
+    
+    setShowMrWhiteGuess(false);
+    setMrWhiteGuess('');
+    setCurrentPhase('final-results');
+  };
+
   const showRoundResults = (updatedPlayers: Player[]) => {
-    // Calculate round points and show leaderboard
     const leaderboard = [...updatedPlayers].sort((a, b) => b.points - a.points);
     setRoundLeaderboard(leaderboard);
     setShowRoundLeaderboard(true);
   };
 
   const startDiscussionTimer = () => {
-    setDiscussionTimer(120); // 2 minutes
+    setDiscussionTimer(120);
     setIsTimerRunning(true);
   };
 
@@ -230,84 +249,56 @@ export default function GameFlow() {
     setCurrentPhase('discussion');
   };
 
-  const nextDescription = () => {
-    if (currentDescriptionIndex < descriptionOrder.length - 1) {
-      setCurrentDescriptionIndex(currentDescriptionIndex + 1);
-    } else {
-      setCurrentPhase('discussion');
-    }
-  };
-
   const startVoting = () => {
     resetVotingState();
     setCurrentPhase('voting');
   };
 
   const castVote = (votedForId: string) => {
+    if (isProcessingVotes) return;
+    
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
     
-    // Safety checks
-    if (!currentVoter || currentVoterIndex >= alivePlayers.length) {
-      console.error('Invalid voting state - processing results');
-      processVotingResults(votingResults);
+    if (!currentVoter || individualVotes[currentVoter.id]) {
       return;
     }
     
-    // Prevent double voting
-    if (individualVotes[currentVoter.id]) {
-      console.log('Player already voted, skipping');
-      return;
-    }
-    
-    // Record this player's vote
     const newIndividualVotes = { ...individualVotes };
     newIndividualVotes[currentVoter.id] = votedForId;
     setIndividualVotes(newIndividualVotes);
     
-    // Update vote tallies
     const newResults = { ...votingResults };
     newResults[votedForId] = (newResults[votedForId] || 0) + 1;
     setVotingResults(newResults);
     
-    // Check if all players have voted
     const totalVotesCast = Object.keys(newIndividualVotes).length;
     
     if (totalVotesCast >= alivePlayers.length) {
-      // All players have voted, process results immediately
       processVotingResults(newResults);
-    } else if (currentVoterIndex < alivePlayers.length - 1) {
-      // Move to next voter
-      setCurrentVoterIndex(currentVoterIndex + 1);
     } else {
-      // Fallback: if we're at the last voter but not all votes are cast
-      // This shouldn't happen but ensures we don't get stuck
-      processVotingResults(newResults);
+      setCurrentVoterIndex(currentVoterIndex + 1);
     }
   };
 
   const processVotingResults = async (results: {[key: string]: number}) => {
-    // Ensure we don't process results multiple times
-    if (currentPhase !== 'voting') {
-      return;
-    }
+    if (isProcessingVotes || currentPhase !== 'voting') return;
     
-    // Determine elimination
+    setIsProcessingVotes(true);
+    
     const maxVotes = Math.max(...Object.values(results));
     
-    // Handle case where everyone has 0 votes (edge case)
     if (maxVotes === 0) {
+      const alivePlayers = players.filter(p => p.isAlive);
+      const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+      
       Alert.alert('No Votes', 'No one received any votes. Randomly eliminating a player.', [
         { text: 'OK', onPress: async () => {
-          const alivePlayers = players.filter(p => p.isAlive);
-          const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
           if (randomPlayer?.role === 'mrwhite') {
-            handleMrWhiteElimination(randomPlayer);
-          } else {
-            if (randomPlayer) {
-              setEliminatedPlayer(randomPlayer);
-              await eliminatePlayer(randomPlayer.id);
-            }
+            await handleMrWhiteElimination(randomPlayer);
+          } else if (randomPlayer) {
+            setEliminatedPlayer(randomPlayer);
+            await eliminatePlayer(randomPlayer.id);
           }
         }}
       ]);
@@ -319,34 +310,36 @@ export default function GameFlow() {
       .map(([id, _]) => id);
     
     if (mostVotedIds.length === 1) {
-      // Change phase to prevent multiple processing
-      setCurrentPhase('elimination-result');
-      
       const eliminatedId = mostVotedIds[0];
       const eliminated = players.find(p => p.id === eliminatedId);
+      
       if (eliminated) {
+        setEliminatedPlayer(eliminated);
+        
         if (eliminated.role === 'mrwhite') {
-          handleMrWhiteElimination(eliminated);
+          console.log('Processing Mr. White elimination');
+          await handleMrWhiteElimination(eliminated);
         } else {
-          setEliminatedPlayer(eliminated);
+          setCurrentPhase('elimination-result');
           await eliminatePlayer(eliminatedId);
         }
       }
     } else {
-      // Tie - need to revote
-      const tiedPlayerNames = mostVotedIds
-        .map(id => players.find(p => p.id === id)?.name)
+      // Handle tie - show names and restart voting
+      const tiedPlayers = mostVotedIds
+        .map(id => players.find(p => p.id === id))
         .filter(Boolean)
-        .join(', ');
+        .map(p => p!.name);
+      
+      const tiedNames = tiedPlayers.join(', ');
       
       Alert.alert(
         'Tie Vote!', 
-        `There was a tie between: ${tiedPlayerNames}. Please vote again to eliminate one player.`,
+        `There was a tie between: ${tiedNames}. Please vote again to eliminate one player.`,
         [
           { 
             text: 'Vote Again', 
             onPress: () => {
-              // Reset voting state and start new voting round
               resetVotingState();
               setCurrentPhase('voting');
             }
@@ -362,10 +355,8 @@ export default function GameFlow() {
     );
     setPlayers(newPlayers);
     
-    // Save round data
     await saveGameRound(playerId, votingResults);
     
-    // Check win conditions
     const { winner, isGameOver } = GameService.checkWinCondition(newPlayers);
     if (isGameOver && winner) {
       const finalPlayers = GameService.calculatePoints(newPlayers, winner);
@@ -374,7 +365,6 @@ export default function GameFlow() {
       await saveGameResult(winner, finalPlayers);
       setCurrentPhase('final-results');
     } else {
-      // Continue game - show round results first
       showRoundResults(newPlayers);
     }
   };
@@ -623,7 +613,7 @@ export default function GameFlow() {
                 hasVoted && { opacity: 0.5 }
               ]}
               onPress={() => castVote(player.id)}
-              disabled={hasVoted}
+              disabled={hasVoted || isProcessingVotes}
             >
               <Text style={styles.votePlayerName}>{player.name}</Text>
               <Text style={styles.voteCount}>
@@ -648,8 +638,6 @@ export default function GameFlow() {
   }
 
   if (currentPhase === 'elimination-result') {
-    const shouldShowRole = true; // Always show role after elimination
-    
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
@@ -661,11 +649,9 @@ export default function GameFlow() {
           <Text style={styles.eliminatedText}>Player Eliminated:</Text>
           <View style={styles.eliminatedCard}>
             <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
-            {shouldShowRole && (
-              <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
-                {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-              </Text>
-            )}
+            <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
+              {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
+            </Text>
           </View>
 
           <TouchableOpacity
@@ -680,7 +666,7 @@ export default function GameFlow() {
     );
   }
 
-  if (showMrWhiteGuess) {
+  if (currentPhase === 'mr-white-guess' || showMrWhiteGuess) {
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
@@ -705,20 +691,29 @@ export default function GameFlow() {
               autoCorrect={false}
             />
             
-            <TouchableOpacity
-              style={styles.submitGuessButton}
-              onPress={submitMrWhiteGuess}
-              disabled={!mrWhiteGuess.trim()}
-            >
-              <Text style={styles.submitGuessText}>Submit Guess</Text>
-            </TouchableOpacity>
+            <View style={styles.guessButtonsContainer}>
+              <TouchableOpacity
+                style={styles.submitGuessButton}
+                onPress={submitMrWhiteGuess}
+                disabled={!mrWhiteGuess.trim()}
+              >
+                <Text style={styles.submitGuessText}>Submit Guess</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.skipGuessButton}
+                onPress={skipMrWhiteGuess}
+              >
+                <SkipForward size={16} color="#9CA3AF" />
+                <Text style={styles.skipGuessText}>Skip Guess</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </LinearGradient>
     );
   }
 
-  // Round Leaderboard Modal
   if (showRoundLeaderboard) {
     return (
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
@@ -749,7 +744,6 @@ export default function GameFlow() {
           style={styles.continueButton}
           onPress={() => {
             setShowRoundLeaderboard(false);
-            // Check if game should continue or end
             const { winner, isGameOver } = GameService.checkWinCondition(players);
             if (isGameOver && winner) {
               const finalPlayers = GameService.calculatePoints(players, winner);
@@ -945,18 +939,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     lineHeight: 24,
   },
-  currentTurnCard: {
-    backgroundColor: '#374151',
-    padding: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 32,
-  },
-  currentTurnText: {
-    fontSize: 16,
-    color: '#9CA3AF',
-  },
   descriptionHint: {
     fontSize: 14,
     color: '#8B5CF6',
@@ -1121,6 +1103,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#F59E0B',
   },
+  guessButtonsContainer: {
+    gap: 12,
+  },
   submitGuessButton: {
     backgroundColor: '#F59E0B',
     padding: 16,
@@ -1131,6 +1116,22 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  skipGuessButton: {
+    backgroundColor: '#374151',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#6B7280',
+  },
+  skipGuessText: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   finalResultsContainer: {
     flex: 1,
