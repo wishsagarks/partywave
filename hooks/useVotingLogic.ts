@@ -293,21 +293,23 @@ export class VotingPhase {
     console.log(`👥 Processing civilian elimination: ${eliminatedPlayer.name}`);
     
     // Check for special role triggers
-    if (eliminatedPlayer.specialRole === 'revenger') {
-      console.log('⚔️ Revenger eliminated - triggering revenge!');
-      setEliminatedPlayer(eliminatedPlayer);
-      onRevengerEliminated(eliminatedPlayer);
-      return;
-    }
+    // Check for special role triggers (only if special roles are enabled)
+    if (eliminatedPlayer.specialRole) {
+      if (eliminatedPlayer.specialRole === 'revenger') {
+        console.log('⚔️ Revenger eliminated - triggering revenge!');
+        this.props.onRevengerEliminated(eliminatedPlayer);
+        return;
+      }
 
-    if (eliminatedPlayer.specialRole === 'joy-fool' && currentRound === 1) {
-      console.log('🃏 Joy Fool eliminated in first round - bonus points awarded!');
-      // Joy Fool gets bonus points but game continues normally
-    }
+      if (eliminatedPlayer.specialRole === 'joy-fool' && this.props.currentRound === 1) {
+        console.log('🃏 Joy Fool eliminated in first round - bonus points awarded!');
+        // Joy Fool gets bonus points but game continues normally
+      }
 
-    if (eliminatedPlayer.specialRole === 'ghost') {
-      console.log('👻 Ghost eliminated - they continue to participate!');
-      // Ghost continues voting after elimination
+      if (eliminatedPlayer.specialRole === 'ghost') {
+        console.log('👻 Ghost eliminated - they continue to participate!');
+        // Ghost continues voting after elimination
+      }
     }
 
     // Handle chain eliminations (Lovers, etc.) and continue game
@@ -323,11 +325,13 @@ export class VotingPhase {
 
     console.log(`🕵️ Processing undercover elimination: ${eliminatedPlayer.name}`);
     
-    // Check for special role triggers first
-    if (eliminatedPlayer.specialRole === 'revenger') {
-      console.log('⚔️ Undercover Revenger eliminated - triggering revenge!');
-      setEliminatedPlayer(eliminatedPlayer);
-      onRevengerEliminated(eliminatedPlayer);
+    // Check for special role triggers first (only if special roles are enabled)
+    if (eliminatedPlayer.specialRole) {
+      if (eliminatedPlayer.specialRole === 'revenger') {
+        console.log('⚔️ Undercover Revenger eliminated - triggering revenge!');
+        this.props.onRevengerEliminated(eliminatedPlayer);
+        return;
+      }
       return;
     }
 
@@ -363,11 +367,13 @@ export class VotingPhase {
 
     console.log(`❓ Processing Mr. White elimination: ${eliminatedPlayer.name}`);
     
-    // Check for special role triggers first
-    if (eliminatedPlayer.specialRole === 'revenger') {
-      console.log('⚔️ Mr. White Revenger eliminated - triggering revenge!');
-      setEliminatedPlayer(eliminatedPlayer);
-      onRevengerEliminated(eliminatedPlayer);
+    // Check for special role triggers first (only if special roles are enabled)
+    if (eliminatedPlayer.specialRole) {
+      if (eliminatedPlayer.specialRole === 'revenger') {
+        console.log('⚔️ Mr. White Revenger eliminated - triggering revenge!');
+        this.props.onRevengerEliminated(eliminatedPlayer);
+        return;
+      }
       return;
     }
 
@@ -406,6 +412,11 @@ export class VotingPhase {
     const { players } = this.props;
     const chainEliminations: string[] = [];
     const specialEffects: string[] = [];
+
+    // If no special role, return empty effects
+    if (!eliminatedPlayer.specialRole) {
+      return { chainEliminations, specialEffects };
+    }
 
     // The Lovers: Chain elimination
     if (eliminatedPlayer.specialRole === 'lovers' && eliminatedPlayer.loverId) {
@@ -526,10 +537,13 @@ export class VotingPhase {
    * Checks if Goddess of Justice is present and active
    */
   public hasGoddessOfJustice(): boolean {
-    return this.props.players.some(p => 
-      p.specialRole === 'goddess-of-justice' && 
-      (p.isAlive || p.canVote)
-    );
+    return this.props.players.some(p => {
+      // Only check if player has special roles enabled
+      if (!p.specialRole) return false;
+      
+      return p.specialRole === 'goddess-of-justice' && 
+             (p.isAlive || p.canVote);
+    });
   }
 }
 
