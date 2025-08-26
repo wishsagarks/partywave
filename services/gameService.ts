@@ -700,6 +700,9 @@ export class GameService {
     if (totalImpostors === 0) {
       return { winner: 'Civilians', isGameOver: true };
     }
+
+    // Impostors win: equal or outnumber civilians
+    if (totalImpostors >= aliveCivilians.length) {
       // When both impostor types are present, they win as a team
       if (aliveUndercovers.length > 0 && aliveMrWhites.length > 0) {
         console.log('🏆 Impostors win - team victory');
@@ -708,6 +711,12 @@ export class GameService {
       // Only one impostor type remains - individual victory
       else if (aliveUndercovers.length > 0) {
         console.log('🏆 Undercover wins - sole impostor type');
+        return { winner: 'Undercover', isGameOver: true };
+      } else if (aliveMrWhites.length > 0) {
+        console.log('🏆 Mr. White wins - sole impostor type');
+        return { winner: 'Mr. White', isGameOver: true };
+      }
+    }
 
     // Game continues
     return { winner: null, isGameOver: false };
