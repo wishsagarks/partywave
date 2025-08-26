@@ -259,6 +259,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     // Check for special roles that trigger on elimination
     if (eliminatedPlayer.specialRole === 'revenger') {
       console.log('⚔️ Revenger eliminated - triggering revenge!');
+      setIsProcessingVotes(false);
       onRevengerEliminated(eliminatedPlayer);
       return;
     }
@@ -269,6 +270,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     }
 
     // Handle special role chain eliminations (Lovers, etc.)
+    setIsProcessingVotes(false);
     await onPlayerEliminated(eliminatedPlayer);
   }, [currentRound, onRevengerEliminated, onPlayerEliminated]);
 
@@ -282,6 +284,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     // Check for special roles first
     if (eliminatedPlayer.specialRole === 'revenger') {
       console.log('⚔️ Undercover Revenger eliminated - triggering revenge!');
+      setIsProcessingVotes(false);
       onRevengerEliminated(eliminatedPlayer);
       return;
     }
@@ -309,6 +312,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
       }
     }
 
+    setIsProcessingVotes(false);
     await onPlayerEliminated(eliminatedPlayer);
   }, [players, onRevengerEliminated, onPlayerEliminated]);
 
@@ -338,9 +342,11 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     // Mr. White gets final guess ONLY if they're the last impostor
     if (remainingImpostors.length === 0) {
       console.log('🎯 Mr. White is last impostor - gets final guess!');
+      setIsProcessingVotes(false);
       await onMrWhiteEliminated(eliminatedPlayer);
     } else {
-      console.log('🕵️ Other impostors remain - no guess opportunity');
+      console.log('🕵️ Other impostors remain - treating as regular elimination');
+      setIsProcessingVotes(false);
       await onPlayerEliminated(eliminatedPlayer);
     }
   }, [players, onRevengerEliminated, onMrWhiteEliminated, onPlayerEliminated]);
