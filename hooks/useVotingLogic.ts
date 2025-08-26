@@ -134,6 +134,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           }
         } else {
           // No elimination due to tie
+          setIsProcessingVotes(false);
           resetVotingState();
           // Continue to next round or phase
         }
@@ -149,6 +150,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     onRevengerEliminated,
     onPlayerEliminated,
     resetVotingState,
+    setIsProcessingVotes,
   ]);
 
   return {
