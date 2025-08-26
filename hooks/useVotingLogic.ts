@@ -323,6 +323,9 @@ export const useVotingLogic = (props: VotingLogicProps) => {
   const handleMrWhiteElimination = useCallback(async (eliminatedPlayer: Player) => {
     console.log(`❓ Processing Mr. White elimination: ${eliminatedPlayer.name}`);
     
+    // Always set the eliminated player first
+    setEliminatedPlayer(eliminatedPlayer);
+    
     // Check for special roles first
     if (eliminatedPlayer.specialRole === 'revenger') {
       console.log('⚔️ Mr. White Revenger eliminated - triggering revenge!');
