@@ -13,17 +13,6 @@ interface UseSpecialRolesProps {
   showRoundResults: (players: Player[]) => void;
 }
 
-export default function useSpecialRoles({
-  players,
-  setPlayers,
-  setShowRevengerModal,
-  setRevengerPlayer,
-  setShowSpecialRoleCard,
-  setCurrentSpecialRolePlayer,
-  onGameEnd,
-  showRoundResults,
-}: UseSpecialRolesProps) {
-
   const handleShowSpecialRoleCard = useCallback((player: Player) => {
     if (player.specialRole) {
       setCurrentSpecialRolePlayer(player);
@@ -84,3 +73,9 @@ export default function useSpecialRoles({
     showRevengerModal,
   };
 }
+
+const useSpecialRoles = (props: UseSpecialRolesProps) => {
+  return useSpecialRolesLogic(props);
+};
+
+export default useSpecialRoles;
