@@ -92,19 +92,16 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     try {
       // Find player(s) with most votes
       const maxVotes = Math.max(...Object.values(results));
-      const mostVotedPlayerIds = Object.keys(results).filter(id => results[id] === maxVotes);
-
-      if (mostVotedPlayerIds.length === 1) {
-        // Single player eliminated
-        const eliminatedPlayerId = mostVotedPlayerIds[0];
-        const eliminatedPlayer = players.find(p => p.id === eliminatedPlayerId);
-        
-        if (eliminatedPlayer) {
-          setEliminatedPlayer(eliminatedPlayer);
-          
-          // Handle different role eliminations
+          // Check if Mr. White should get to guess (only if no undercover left)
           if (eliminatedPlayer.role === 'mrwhite') {
-            await onMrWhiteEliminated(eliminatedPlayer);
+            const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover');
+            if (remainingUndercover.length === 0) {
+              // Mr. White is last impostor, gets to guess
+              await onMrWhiteEliminated(eliminatedPlayer);
+            } else {
+              // Still undercover alive, regular elimination
+              await onPlayerEliminated(eliminatedPlayer);
+            }
           } else if (eliminatedPlayer.specialRole === 'revenger') {
             onRevengerEliminated(eliminatedPlayer);
           } else {
@@ -124,9 +121,14 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           if (eliminatedPlayer) {
             setEliminatedPlayer(eliminatedPlayer);
             
-            const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
-            if (eliminatedPlayer.role === 'mrwhite' && remainingUndercover.length === 0) {
-              await onMrWhiteEliminated(eliminatedPlayer);
+            // Check if Mr. White should get to guess
+            if (eliminatedPlayer.role === 'mrwhite') {
+              const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover');
+              if (remainingUndercover.length === 0) {
+                await onMrWhiteEliminated(eliminatedPlayer);
+              } else {
+                await onPlayerEliminated(eliminatedPlayer);
+              }
             } else if (eliminatedPlayer.specialRole === 'revenger') {
               onRevengerEliminated(eliminatedPlayer);
             } else {
@@ -137,7 +139,8 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           // No elimination due to tie
           setIsProcessingVotes(false);
           resetVotingState();
-          // Continue to next round or phase
+          // Show tie message and continue game
+          console.log('Voting tie - no elimination this round');
         }
       }
     } catch (error) {
