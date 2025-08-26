@@ -258,9 +258,10 @@ export class VotingPhase {
    * Processes elimination based on the eliminated player's role
    */
   private async processRoleElimination(eliminatedPlayer: Player): Promise<void> {
-    const { setIsProcessingVotes } = this.props;
+    const { setIsProcessingVotes, setEliminatedPlayer } = this.props;
 
-    // Set processing to false before calling handlers
+    // CRITICAL: Set eliminated player and stop processing BEFORE calling handlers
+    setEliminatedPlayer(eliminatedPlayer);
     setIsProcessingVotes(false);
 
     switch (eliminatedPlayer.role) {
@@ -287,13 +288,14 @@ export class VotingPhase {
    * Handles civilian elimination and special role triggers
    */
   private async handleCivilianElimination(eliminatedPlayer: Player): Promise<void> {
-    const { currentRound, onRevengerEliminated, onPlayerEliminated } = this.props;
+    const { currentRound, onRevengerEliminated, onPlayerEliminated, setEliminatedPlayer } = this.props;
 
     console.log(`👥 Processing civilian elimination: ${eliminatedPlayer.name}`);
     
     // Check for special role triggers
     if (eliminatedPlayer.specialRole === 'revenger') {
       console.log('⚔️ Revenger eliminated - triggering revenge!');
+      setEliminatedPlayer(eliminatedPlayer);
       onRevengerEliminated(eliminatedPlayer);
       return;
     }
@@ -309,6 +311,7 @@ export class VotingPhase {
     }
 
     // Handle chain eliminations (Lovers, etc.) and continue game
+    setEliminatedPlayer(eliminatedPlayer);
     await onPlayerEliminated(eliminatedPlayer);
   }
 
@@ -316,13 +319,14 @@ export class VotingPhase {
    * Handles undercover elimination and win condition checks
    */
   private async handleUndercoverElimination(eliminatedPlayer: Player): Promise<void> {
-    const { players, onRevengerEliminated, onPlayerEliminated } = this.props;
+    const { players, onRevengerEliminated, onPlayerEliminated, setEliminatedPlayer } = this.props;
 
     console.log(`🕵️ Processing undercover elimination: ${eliminatedPlayer.name}`);
     
     // Check for special role triggers first
     if (eliminatedPlayer.specialRole === 'revenger') {
       console.log('⚔️ Undercover Revenger eliminated - triggering revenge!');
+      setEliminatedPlayer(eliminatedPlayer);
       onRevengerEliminated(eliminatedPlayer);
       return;
     }
@@ -347,6 +351,7 @@ export class VotingPhase {
       console.log('🔄 Game continues - impostors remain');
     }
 
+    setEliminatedPlayer(eliminatedPlayer);
     await onPlayerEliminated(eliminatedPlayer);
   }
 
@@ -354,13 +359,14 @@ export class VotingPhase {
    * Handles Mr. White elimination with final guess logic
    */
   private async handleMrWhiteElimination(eliminatedPlayer: Player): Promise<void> {
-    const { players, onRevengerEliminated, onMrWhiteEliminated, onPlayerEliminated } = this.props;
+    const { players, onRevengerEliminated, onMrWhiteEliminated, onPlayerEliminated, setEliminatedPlayer } = this.props;
 
     console.log(`❓ Processing Mr. White elimination: ${eliminatedPlayer.name}`);
     
     // Check for special role triggers first
     if (eliminatedPlayer.specialRole === 'revenger') {
       console.log('⚔️ Mr. White Revenger eliminated - triggering revenge!');
+      setEliminatedPlayer(eliminatedPlayer);
       onRevengerEliminated(eliminatedPlayer);
       return;
     }
@@ -377,9 +383,11 @@ export class VotingPhase {
     // Mr. White gets final guess ONLY if they're the last impostor
     if (remainingImpostors.length === 0) {
       console.log('🎯 Mr. White is last impostor - gets final guess opportunity!');
+      setEliminatedPlayer(eliminatedPlayer);
       await onMrWhiteEliminated(eliminatedPlayer);
     } else {
       console.log('🕵️ Other impostors remain - treating as regular elimination');
+      setEliminatedPlayer(eliminatedPlayer);
       await onPlayerEliminated(eliminatedPlayer);
     }
   }
