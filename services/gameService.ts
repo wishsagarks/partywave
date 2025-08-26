@@ -414,7 +414,27 @@ export class GameService {
     selectedSpecialRoles?: SpecialRole[]
   ): Player[] {
     const playerCount = playerNames.length;
-    const distribution = customRoles || this.getRoleDistribution(playerCount);
+    
+    // Use custom roles if provided, otherwise use default distribution
+    let distribution;
+    if (customRoles) {
+      // Validate custom roles configuration
+      const totalCustomRoles = customRoles.civilians + customRoles.undercover + customRoles.mrWhite;
+      if (totalCustomRoles !== playerCount) {
+        console.warn(`Custom roles total (${totalCustomRoles}) doesn't match player count (${playerCount}). Using default distribution.`);
+        distribution = this.getRoleDistribution(playerCount);
+      } else {
+        distribution = customRoles;
+      }
+    } else {
+      distribution = this.getRoleDistribution(playerCount);
+    }
+    
+    // Validate final distribution
+    const totalRoles = distribution.civilians + distribution.undercover + distribution.mrWhite;
+    if (totalRoles !== playerCount) {
+      throw new Error(`Role distribution error: ${totalRoles} roles for ${playerCount} players`);
+    }
     
     // Create role array
     const roles: PlayerRole[] = [
@@ -422,6 +442,11 @@ export class GameService {
       ...Array(distribution.undercover).fill('undercover'),
       ...Array(distribution.mrWhite).fill('mrwhite'),
     ];
+    
+    // Validate role array length
+    if (roles.length !== playerCount) {
+      throw new Error(`Role array length (${roles.length}) doesn't match player count (${playerCount})`);
+    }
 
     // Multiple shuffles for maximum randomness
     for (let i = roles.length - 1; i > 0; i--) {
@@ -473,6 +498,17 @@ export class GameService {
       points: 0,
     };
     });
+    
+    // Final validation: count assigned roles
+    const assignedCivilians = players.filter(p => p.role === 'civilian').length;
+    const assignedUndercover = players.filter(p => p.role === 'undercover').length;
+    const assignedMrWhite = players.filter(p => p.role === 'mrwhite').length;
+    
+    if (assignedCivilians !== distribution.civilians || 
+        assignedUndercover !== distribution.undercover || 
+        assignedMrWhite !== distribution.mrWhite) {
+      throw new Error(`Role assignment mismatch: Expected ${distribution.civilians}/${distribution.undercover}/${distribution.mrWhite}, got ${assignedCivilians}/${assignedUndercover}/${assignedMrWhite}`);
+    }
 
     // Assign special roles if enabled
     if (useSpecialRoles && selectedSpecialRoles && selectedSpecialRoles.length > 0) {

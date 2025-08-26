@@ -512,6 +512,11 @@ export default function GameFlow() {
             <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
               {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
             </Text>
+            {eliminatedPlayer?.word && (
+              <Text style={styles.eliminatedPlayerWord}>
+                Their word was: "{eliminatedPlayer.word}"
+              </Text>
+            )}
           </View>
 
           <TouchableOpacity style={styles.nextButton} onPress={nextRound}>
@@ -866,6 +871,12 @@ const styles = StyleSheet.create({
   eliminatedRole: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  eliminatedPlayerWord: {
+    fontSize: 14,
+    color: '#8B5CF6',
+    fontStyle: 'italic',
+    marginTop: 8,
   },
   mrWhiteGuessInstructions: {
     fontSize: 18,

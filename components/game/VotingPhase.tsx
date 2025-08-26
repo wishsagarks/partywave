@@ -141,14 +141,9 @@ export const VotingPhase: React.FC<VotingPhaseProps> = ({
             >
               <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>{player.name}</Text>
-                <Text style={[styles.playerRole, { color: getRoleColor(player.role) }]}>
-                  {getRoleEmoji(player.role)} {getRoleName(player.role)}
+                <Text style={styles.playerStatus}>
+                  {player.isAlive ? '🟢 Alive' : '🔴 Eliminated'}
                 </Text>
-                {player.specialRole && (
-                  <Text style={styles.playerSpecialRole}>
-                    ⚡ {player.specialRole.replace('-', ' ')}
-                  </Text>
-                )}
               </View>
               
               <View style={styles.voteInfo}>
@@ -290,13 +285,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#F3F4F6',
   },
-  playerRole: {
+  playerStatus: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  playerSpecialRole: {
-    fontSize: 10,
-    color: '#F59E0B',
+    color: '#9CA3AF',
+    fontWeight: '500',
   },
   voteInfo: {
     alignItems: 'center',
