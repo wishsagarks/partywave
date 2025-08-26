@@ -265,7 +265,7 @@ export default function GameFlow() {
     
     // Include Ghost players who can still vote
     const votingPlayers = players.filter(p => p.canVote);
-    const currentVoter = alivePlayers[currentVoterIndex];
+    const currentVoter = votingPlayers[currentVoterIndex];
     
     if (!currentVoter || individualVotes[currentVoter.id]) {
       return;
