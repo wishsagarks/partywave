@@ -449,40 +449,31 @@ export class VotingPhase {
       };
     }
 
-    // IMPOSTORS WIN: Impostors equal or outnumber civilians
-    // This includes scenarios where Undercover + Mr. White together can control votes
+    // IMPOSTORS WIN: Impostors equal or outnumber civilians (they can control votes)
     if (totalImpostors >= aliveCivilians.length && totalImpostors > 0) {
-      // Determine which impostor group gets credit for the win
-      if (aliveUndercovers.length > aliveMrWhites.length) {
-        return { 
-          winner: 'Undercover', 
-          isGameOver: true, 
-          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})` 
-        };
-      } else if (aliveMrWhites.length > aliveUndercovers.length) {
-        return { 
-          winner: 'Mr. White', 
-          isGameOver: true, 
-          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})` 
-        };
-      } else {
-        // Equal numbers or mixed - give win to Undercover (traditional rule)
-        return { 
-          winner: 'Undercover', 
-          isGameOver: true, 
-          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})` 
+      // When both impostor types are present, they win as a team
+      if (aliveUndercovers.length > 0 && aliveMrWhites.length > 0) {
+        return {
+          winner: 'Impostors',
+          isGameOver: true,
+          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})`
         };
       }
-    }
-
-    // SPECIAL CASE: Only Mr. White remains as impostor
-    // Game continues until Mr. White is eliminated (then gets guess) or wins by outnumbering
-    if (aliveUndercovers.length === 0 && aliveMrWhites.length > 0) {
-      return { 
-        winner: null, 
-        isGameOver: false, 
-        reason: 'Only Mr. White remains - game continues until elimination or victory' 
-      };
+      // Only one impostor type remains - they get individual credit
+      else if (aliveUndercovers.length > 0) {
+        return {
+          winner: 'Undercover',
+          isGameOver: true,
+          reason: `Undercover agents (${aliveUndercovers.length}) equal or outnumber civilians (${aliveCivilians.length})`
+        };
+      }
+      else if (aliveMrWhites.length > 0) {
+        return {
+          winner: 'Mr. White',
+          isGameOver: true,
+          reason: `Mr. White (${aliveMrWhites.length}) equals or outnumbers civilians (${aliveCivilians.length})`
+        };
+      }
     }
 
     // Game continues

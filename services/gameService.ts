@@ -700,18 +700,14 @@ export class GameService {
     if (totalImpostors === 0) {
       return { winner: 'Civilians', isGameOver: true };
     }
-
-    // Impostors win: equal or outnumber civilians
-    if (totalImpostors >= aliveCivilians.length && totalImpostors > 0) {
-      // Determine winner based on remaining impostor composition
-      if (aliveUndercovers.length > aliveMrWhites.length) {
-        return { winner: 'Undercover', isGameOver: true };
-      } else if (aliveMrWhites.length > aliveUndercovers.length) {
-        return { winner: 'Mr. White', isGameOver: true };
-      } else {
-        return { winner: 'Undercover', isGameOver: true }; // Default to Undercover
+      // When both impostor types are present, they win as a team
+      if (aliveUndercovers.length > 0 && aliveMrWhites.length > 0) {
+        console.log('🏆 Impostors win - team victory');
+        return { winner: 'Impostors', isGameOver: true };
       }
-    }
+      // Only one impostor type remains - individual victory
+      else if (aliveUndercovers.length > 0) {
+        console.log('🏆 Undercover wins - sole impostor type');
 
     // Game continues
     return { winner: null, isGameOver: false };
@@ -727,8 +723,13 @@ export class GameService {
         points = 6;
       } else if (winner === 'Undercover' && player.role === 'undercover') {
         points = 10;
-      } else if (winner === 'Impostors' && (player.role === 'undercover' || player.role === 'mrwhite')) {
-        points = player.role === 'undercover' ? 10 : 6;
+      } else if (winner === 'Impostors') {
+        // Both impostor types win together
+        if (player.role === 'undercover') {
+          points = 10;
+        } else if (player.role === 'mrwhite') {
+          points = 6;
+        }
       }
 
       return { ...player, points };
