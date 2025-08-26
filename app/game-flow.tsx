@@ -106,6 +106,11 @@ export default function GameFlow() {
   // Handle regular player elimination
   const handlePlayerElimination = async (player: any) => {
     try {
+      // Mark player as eliminated
+      const updatedPlayers = players.map(p => 
+        p.id === player.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
+      );
+      
       const { finalPlayers, chainEliminations } = specialRoles.handleSpecialRoleElimination(player.id, currentRound);
       
       await GameService.saveGameRound(gameId as string, currentRound, player.id, votingResults);
@@ -119,15 +124,19 @@ export default function GameFlow() {
         Alert.alert('Chain Elimination!', `${chainedNames} was also eliminated due to special role effects.`);
       }
       
-      const { winner, isGameOver } = GameService.checkWinCondition(finalPlayers);
+      // Use updated players for win condition check
+      const playersToCheck = chainEliminations.length > 0 ? finalPlayers : updatedPlayers;
+      const { winner, isGameOver } = GameService.checkWinCondition(playersToCheck);
+      
       if (isGameOver && winner) {
-        const scoredPlayers = GameService.calculatePoints(finalPlayers, winner);
+        const scoredPlayers = GameService.calculatePoints(playersToCheck, winner);
         setPlayers(scoredPlayers);
         setGameWinner(winner);
         await saveGameResult(winner, scoredPlayers);
         setCurrentPhase('final-results');
       } else {
-        showRoundResults(finalPlayers);
+        setPlayers(playersToCheck);
+        showRoundResults(playersToCheck);
       }
     } catch (error) {
       console.error('Error handling player elimination:', error);

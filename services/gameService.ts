@@ -695,20 +695,21 @@ export class GameService {
     const aliveUndercovers = alivePlayers.filter(p => p.role === 'undercover');
     const aliveMrWhites = alivePlayers.filter(p => p.role === 'mrwhite');
 
-    // Civilians win: all impostors eliminated
+    // Civilians win: all undercover and Mr. White eliminated
     if (aliveUndercovers.length === 0 && aliveMrWhites.length === 0) {
       return { winner: 'Civilians', isGameOver: true };
     }
 
-    // Impostors win: civilians reduced to 1 or fewer
-    if (aliveCivilians.length <= 1) {
-      if (aliveUndercovers.length > 0 && aliveMrWhites.length > 0) {
-        return { winner: 'Impostors', isGameOver: true };
-      } else if (aliveUndercovers.length > 0) {
-        return { winner: 'Undercover', isGameOver: true };
-      } else if (aliveMrWhites.length > 0) {
-        return { winner: 'Mr. White', isGameOver: true };
-      }
+    // Undercover wins: civilians reduced to equal or fewer than undercover agents
+    if (aliveCivilians.length <= aliveUndercovers.length && aliveUndercovers.length > 0) {
+      return { winner: 'Undercover', isGameOver: true };
+    }
+
+    // Mr. White wins: only if they correctly guess the word (handled separately)
+    // Continue game if Mr. White is still alive but undercover eliminated
+    if (aliveMrWhites.length > 0 && aliveUndercovers.length === 0 && aliveCivilians.length > aliveMrWhites.length) {
+      // Game continues - Mr. White still has a chance
+      return { winner: null, isGameOver: false };
     }
 
     return { winner: null, isGameOver: false };
