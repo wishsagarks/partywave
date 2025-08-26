@@ -104,7 +104,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           
           // Check if Mr. White should get to guess (only if no undercover left)
           if (eliminatedPlayer.role === 'mrwhite') {
-            const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover');
+            const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
             if (remainingUndercover.length === 0) {
               // Mr. White is last impostor, gets to guess
               await onMrWhiteEliminated(eliminatedPlayer);
@@ -133,7 +133,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
             
             // Check if Mr. White should get to guess
             if (eliminatedPlayer.role === 'mrwhite') {
-              const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover');
+              const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
               if (remainingUndercover.length === 0) {
                 await onMrWhiteEliminated(eliminatedPlayer);
               } else {
