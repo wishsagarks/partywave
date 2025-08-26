@@ -102,10 +102,16 @@ export const useVotingLogic = (props: VotingLogicProps) => {
         if (eliminatedPlayer) {
           setEliminatedPlayer(eliminatedPlayer);
           
-          // Check if Mr. White should get to guess (only if no undercover left)
+          // Check if Mr. White should get to guess (only if they're the last impostor)
           if (eliminatedPlayer.role === 'mrwhite') {
-            const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
-            if (remainingUndercover.length === 0) {
+            // Count remaining impostors after this elimination (excluding the eliminated Mr. White)
+            const remainingImpostors = players.filter(p => 
+              p.isAlive && 
+              p.id !== eliminatedPlayer.id && 
+              (p.role === 'undercover' || p.role === 'mrwhite')
+            );
+            
+            if (remainingImpostors.length === 0) {
               // Mr. White is last impostor, gets to guess
               await onMrWhiteEliminated(eliminatedPlayer);
             } else {
@@ -131,10 +137,16 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           if (eliminatedPlayer) {
             setEliminatedPlayer(eliminatedPlayer);
             
-            // Check if Mr. White should get to guess
+            // Check if Mr. White should get to guess (only if they're the last impostor)
             if (eliminatedPlayer.role === 'mrwhite') {
-              const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover' && p.id !== eliminatedPlayer.id);
-              if (remainingUndercover.length === 0) {
+              // Count remaining impostors after this elimination (excluding the eliminated Mr. White)
+              const remainingImpostors = players.filter(p => 
+                p.isAlive && 
+                p.id !== eliminatedPlayer.id && 
+                (p.role === 'undercover' || p.role === 'mrwhite')
+              );
+              
+              if (remainingImpostors.length === 0) {
                 await onMrWhiteEliminated(eliminatedPlayer);
               } else {
                 await onPlayerEliminated(eliminatedPlayer);
