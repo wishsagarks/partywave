@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Vote, Users, Clock, CheckCircle } from 'lucide-react-native';
+import { Vote, Users, Clock, CircleCheck as CheckCircle } from 'lucide-react-native';
 import { Player } from '@/types/game';
 
 interface VotingPhaseProps {
