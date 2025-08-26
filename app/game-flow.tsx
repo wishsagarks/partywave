@@ -328,6 +328,11 @@ export default function GameFlow() {
         if (eliminated.role === 'mrwhite') {
           handleMrWhiteElimination(eliminated);
         } else {
+          setEliminatedPlayer(eliminated);
+          await eliminatePlayer(eliminatedId);
+        }
+      }
+    } else {
       // Tie - need to revote
       const tiedPlayerNames = mostVotedIds
         .map(id => players.find(p => p.id === id)?.name)
