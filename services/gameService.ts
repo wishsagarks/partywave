@@ -196,6 +196,44 @@ export class GameService {
     }
   }
 
+  // Game Initialization
+  static async initializeGame(
+    playerNames: string[],
+    playerIds: string[],
+    customRoles?: { civilians: number; undercover: number; mrWhite: number },
+    useSpecialRoles?: boolean,
+    selectedSpecialRoles?: SpecialRole[]
+  ): Promise<{ players: Player[]; wordPair: WordPair } | null> {
+    try {
+      // Get random word pair
+      const wordPair = await this.getRandomWordPair();
+      if (!wordPair) {
+        throw new Error('No word pairs available');
+      }
+
+      // Assign roles to players
+      const players = this.assignRoles(
+        playerNames,
+        wordPair,
+        playerIds,
+        customRoles,
+        useSpecialRoles,
+        selectedSpecialRoles
+      );
+
+      // Increment word pair usage count
+      await supabase
+        .from('word_pairs')
+        .update({ usage_count: wordPair.usage_count + 1 })
+        .eq('id', wordPair.id);
+
+      return { players, wordPair };
+    } catch (error) {
+      console.error('Error initializing game:', error);
+      return null;
+    }
+  }
+
   // Game Management
   static async getRandomWordPair(): Promise<WordPair | null> {
     try {
