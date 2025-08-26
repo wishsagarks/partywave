@@ -128,14 +128,14 @@ export const useGameState = (params: GameStateParams) => {
 
   const saveGameRound = useCallback(async (eliminatedPlayerId: string, votes: Record<string, number>, mrWhiteGuess?: string, isCorrect?: boolean) => {
     try {
-      await GameService.saveGameRound({
-        gameId: params.gameId,
-        roundNumber: currentRound,
+      await GameService.saveGameRound(
+        params.gameId,
+        currentRound,
         eliminatedPlayerId,
-        voteResults: votes,
+        votes,
         mrWhiteGuess,
-        mrWhiteGuessCorrect: isCorrect,
-      });
+        isCorrect
+      );
     } catch (error) {
       console.error('Failed to save game round:', error);
     }
