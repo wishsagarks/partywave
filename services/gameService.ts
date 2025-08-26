@@ -696,44 +696,24 @@ export class GameService {
     const aliveMrWhites = alivePlayers.filter(p => p.role === 'mrwhite');
     const totalImpostors = aliveUndercovers.length + aliveMrWhites.length;
 
-    console.log(`🎯 Win check - Civilians: ${aliveCivilians.length}, Undercovers: ${aliveUndercovers.length}, Mr. Whites: ${aliveMrWhites.length}, Total Impostors: ${totalImpostors}`);
-
-    // CIVILIANS WIN: All impostors (Undercover + Mr. White) eliminated
+    // Civilians win: all impostors eliminated
     if (totalImpostors === 0) {
       return { winner: 'Civilians', isGameOver: true };
     }
 
-    // IMPOSTORS WIN: Impostors equal or outnumber civilians
-    // This includes scenarios where Undercover + Mr. White together can control votes
+    // Impostors win: equal or outnumber civilians
     if (totalImpostors >= aliveCivilians.length && totalImpostors > 0) {
-      // Determine which impostor group gets credit for the win
+      // Determine winner based on remaining impostor composition
       if (aliveUndercovers.length > aliveMrWhites.length) {
-        return { 
-          winner: 'Undercover', 
-          isGameOver: true
-        };
+        return { winner: 'Undercover', isGameOver: true };
       } else if (aliveMrWhites.length > aliveUndercovers.length) {
-        return { 
-          winner: 'Mr. White', 
-          isGameOver: true
-        };
+        return { winner: 'Mr. White', isGameOver: true };
       } else {
-        // Equal numbers or mixed - give win to Undercover (traditional rule)
-        return { 
-          winner: 'Undercover', 
-          isGameOver: true
-        };
+        return { winner: 'Undercover', isGameOver: true }; // Default to Undercover
       }
     }
 
-    // SPECIAL CASE: Only Mr. White remains as impostor
-    // Game continues until Mr. White is eliminated (then gets guess) or wins by outnumbering
-    if (aliveUndercovers.length === 0 && aliveMrWhites.length > 0) {
-      console.log('🎯 Only Mr. White remains - game continues until elimination or victory');
-    }
-
-    // Game continues - Civilians outnumber impostors
-    console.log(`🔄 Game continues - Civilians: ${aliveCivilians.length}, Impostors: ${totalImpostors}`);
+    // Game continues
     return { winner: null, isGameOver: false };
   }
 
