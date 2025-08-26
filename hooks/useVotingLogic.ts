@@ -44,32 +44,34 @@ export const useVotingLogic = (props: VotingLogicProps) => {
   } = props;
 
   /**
-   * Validates if a vote can be cast by the current voter
+   * PHASE 1: VOTE VALIDATION
+   * Ensures only eligible players can vote for valid targets
    */
   const validateVote = useCallback((voterId: string, targetId: string): boolean => {
-    // Check if voter exists and is eligible to vote
     const voter = players.find(p => p.id === voterId);
+    const target = players.find(p => p.id === targetId);
+
+    // Voter must exist and be eligible (alive OR ghost with canVote)
     if (!voter || (!voter.isAlive && !voter.canVote)) {
-      console.warn(`Invalid voter: ${voterId}`);
+      console.warn(`❌ Invalid voter: ${voter?.name || voterId} (alive: ${voter?.isAlive}, canVote: ${voter?.canVote})`);
       return false;
     }
 
-    // Check if target exists and is alive (can be voted for)
-    const target = players.find(p => p.id === targetId);
+    // Target must exist and be alive (can be voted for)
     if (!target || !target.isAlive) {
-      console.warn(`Invalid target: ${targetId}`);
+      console.warn(`❌ Invalid target: ${target?.name || targetId} (alive: ${target?.isAlive})`);
       return false;
     }
 
     // Prevent self-voting
     if (voterId === targetId) {
-      console.warn(`Self-voting not allowed: ${voterId}`);
+      console.warn(`❌ Self-voting not allowed: ${voter.name}`);
       return false;
     }
 
     // Check if voter has already voted
     if (individualVotes[voterId]) {
-      console.warn(`Voter ${voterId} has already voted`);
+      console.warn(`❌ ${voter.name} has already voted for ${players.find(p => p.id === individualVotes[voterId])?.name}`);
       return false;
     }
 
@@ -77,13 +79,14 @@ export const useVotingLogic = (props: VotingLogicProps) => {
   }, [players, individualVotes]);
 
   /**
-   * Casts a vote from the current voter to the target player
+   * PHASE 2: VOTE CASTING (Pass-and-Play Mode)
+   * Each player secretly casts their vote
    */
   const castVote = useCallback(async (targetId: string) => {
     try {
       const currentVoter = getCurrentVoter();
       if (!currentVoter || isProcessingVotes) {
-        console.warn('No current voter or votes are being processed');
+        console.warn('⚠️ No current voter or votes being processed');
         return;
       }
 
@@ -92,9 +95,10 @@ export const useVotingLogic = (props: VotingLogicProps) => {
         return;
       }
 
-      console.log(`${currentVoter.name} votes for ${players.find(p => p.id === targetId)?.name}`);
+      const targetPlayer = players.find(p => p.id === targetId);
+      console.log(`🗳️ ${currentVoter.name} votes to eliminate ${targetPlayer?.name}`);
 
-      // Record individual vote
+      // Record individual vote (hidden until all votes cast)
       const updatedIndividualVotes = {
         ...individualVotes,
         [currentVoter.id]: targetId,
@@ -113,21 +117,19 @@ export const useVotingLogic = (props: VotingLogicProps) => {
       const totalVotesNeeded = votingPlayers.length;
       const totalVotesCast = Object.keys(updatedIndividualVotes).length;
 
-      console.log(`Votes cast: ${totalVotesCast}/${totalVotesNeeded}`);
+      console.log(`📊 Votes cast: ${totalVotesCast}/${totalVotesNeeded}`);
 
       if (totalVotesCast >= totalVotesNeeded) {
-        // All players have voted, process results
-        console.log('All votes collected, processing results...');
+        // All players have voted - reveal and process results
+        console.log('🎯 All votes collected! Processing elimination...');
         setIsProcessingVotes(true);
-        await processVotingResults(updatedVotingResults, updatedIndividualVotes);
+        await processVotingResults(updatedVotingResults);
       } else {
-        // Move to next voter
-        const nextVoterIndex = currentVoterIndex + 1;
-        setCurrentVoterIndex(nextVoterIndex);
-        console.log(`Moving to next voter (index: ${nextVoterIndex})`);
+        // Move to next voter in pass-and-play sequence
+        setCurrentVoterIndex(currentVoterIndex + 1);
       }
     } catch (error) {
-      console.error('Error casting vote:', error);
+      console.error('💥 Error casting vote:', error);
       setIsProcessingVotes(false);
     }
   }, [
@@ -146,193 +148,259 @@ export const useVotingLogic = (props: VotingLogicProps) => {
   ]);
 
   /**
-   * Determines which player(s) received the most votes
+   * PHASE 3: VOTE COUNTING & TIE RESOLUTION
+   * Applies majority rule with special role tie-breaking
    */
-  const getMostVotedPlayers = useCallback((results: Record<string, number>): string[] => {
+  const determineElimination = useCallback((results: Record<string, number>): string | null => {
     if (Object.keys(results).length === 0) {
-      return [];
+      console.log('📭 No votes cast');
+      return null;
     }
 
     const maxVotes = Math.max(...Object.values(results));
-    return Object.keys(results).filter(playerId => results[playerId] === maxVotes);
-  }, []);
+    const tiedPlayerIds = Object.keys(results).filter(id => results[id] === maxVotes);
 
-  /**
-   * Handles tie-breaking logic using Goddess of Justice special role
-   */
-  const resolveTie = useCallback((tiedPlayerIds: string[]): string | null => {
-    if (tiedPlayerIds.length <= 1) {
-      return tiedPlayerIds[0] || null;
+    console.log(`🏆 Most votes: ${maxVotes}`);
+    console.log(`🤝 Tied players: ${tiedPlayerIds.map(id => players.find(p => p.id === id)?.name).join(', ')}`);
+
+    // No tie - clear winner
+    if (tiedPlayerIds.length === 1) {
+      const winner = players.find(p => p.id === tiedPlayerIds[0]);
+      console.log(`✅ Clear elimination: ${winner?.name}`);
+      return tiedPlayerIds[0];
     }
 
-    // Check for Goddess of Justice special role
+    // TIE RESOLUTION: Check for Goddess of Justice
     const goddessPlayer = players.find(p => 
       p.specialRole === 'goddess-of-justice' && 
       (p.isAlive || p.canVote)
     );
 
     if (goddessPlayer) {
-      // Goddess of Justice breaks the tie randomly
+      // Goddess of Justice breaks tie automatically
       const randomIndex = Math.floor(Math.random() * tiedPlayerIds.length);
-      const selectedPlayerId = tiedPlayerIds[randomIndex];
-      const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+      const selectedId = tiedPlayerIds[randomIndex];
+      const selectedPlayer = players.find(p => p.id === selectedId);
       
-      console.log(`Goddess of Justice (${goddessPlayer.name}) breaks tie, eliminating ${selectedPlayer?.name}`);
-      return selectedPlayerId;
+      console.log(`⚖️ Goddess of Justice (${goddessPlayer.name}) breaks tie!`);
+      console.log(`⚖️ Eliminates: ${selectedPlayer?.name}`);
+      return selectedId;
     }
 
-    // No tie-breaker available
-    console.log('Voting tie with no Goddess of Justice - no elimination this round');
+    // No tie-breaker available - no elimination this round
+    console.log('🤷 Tie with no Goddess of Justice - no elimination');
     return null;
   }, [players]);
 
   /**
-   * Determines if Mr. White should get a guess opportunity
-   * Mr. White only gets to guess if they are the last remaining impostor
+   * PHASE 4: ELIMINATION OUTCOMES
+   * Handles different elimination cases and special role triggers
    */
-  const shouldMrWhiteGuess = useCallback((eliminatedPlayer: Player): boolean => {
-    if (eliminatedPlayer.role !== 'mrwhite') {
-      return false;
+  const processVotingResults = useCallback(async (results: Record<string, number>) => {
+    try {
+      console.log('🔄 Processing voting results...');
+      
+      const eliminatedPlayerId = determineElimination(results);
+      
+      if (!eliminatedPlayerId) {
+        // No elimination due to unresolved tie
+        console.log('⏭️ No elimination this round - continuing game');
+        setIsProcessingVotes(false);
+        resetVotingState();
+        return;
+      }
+
+      const eliminatedPlayer = players.find(p => p.id === eliminatedPlayerId);
+      if (!eliminatedPlayer) {
+        console.error('💥 Eliminated player not found:', eliminatedPlayerId);
+        setIsProcessingVotes(false);
+        resetVotingState();
+        return;
+      }
+
+      console.log(`💀 ELIMINATED: ${eliminatedPlayer.name} (${eliminatedPlayer.role})`);
+      setEliminatedPlayer(eliminatedPlayer);
+
+      // CASE A: CIVILIAN ELIMINATED
+      if (eliminatedPlayer.role === 'civilian') {
+        console.log('👥 Civilian eliminated - game continues');
+        await handleCivilianElimination(eliminatedPlayer);
+        return;
+      }
+
+      // CASE B: UNDERCOVER ELIMINATED  
+      if (eliminatedPlayer.role === 'undercover') {
+        console.log('🕵️ Undercover eliminated!');
+        await handleUndercoverElimination(eliminatedPlayer);
+        return;
+      }
+
+      // CASE C: MR. WHITE ELIMINATED
+      if (eliminatedPlayer.role === 'mrwhite') {
+        console.log('❓ Mr. White eliminated!');
+        await handleMrWhiteElimination(eliminatedPlayer);
+        return;
+      }
+
+    } catch (error) {
+      console.error('💥 Error processing voting results:', error);
+      setIsProcessingVotes(false);
+      resetVotingState();
+    }
+  }, [determineElimination, players, setEliminatedPlayer, setIsProcessingVotes, resetVotingState]);
+
+  /**
+   * CASE A: CIVILIAN ELIMINATION
+   * Most common case - game continues with fewer players
+   */
+  const handleCivilianElimination = useCallback(async (eliminatedPlayer: Player) => {
+    console.log(`👥 Processing civilian elimination: ${eliminatedPlayer.name}`);
+    
+    // Check for special roles that trigger on elimination
+    if (eliminatedPlayer.specialRole === 'revenger') {
+      console.log('⚔️ Revenger eliminated - triggering revenge!');
+      onRevengerEliminated(eliminatedPlayer);
+      return;
     }
 
-    // Count remaining impostors after this elimination (excluding the eliminated Mr. White)
+    if (eliminatedPlayer.specialRole === 'joy-fool' && currentRound === 1) {
+      console.log('🃏 Joy Fool eliminated in first round - bonus points!');
+      // Joy Fool gets bonus points but game continues normally
+    }
+
+    // Handle special role chain eliminations (Lovers, etc.)
+    await onPlayerEliminated(eliminatedPlayer);
+  }, [currentRound, onRevengerEliminated, onPlayerEliminated]);
+
+  /**
+   * CASE B: UNDERCOVER ELIMINATION
+   * Check if all undercovers eliminated (Civilians win)
+   */
+  const handleUndercoverElimination = useCallback(async (eliminatedPlayer: Player) => {
+    console.log(`🕵️ Processing undercover elimination: ${eliminatedPlayer.name}`);
+    
+    // Check for special roles first
+    if (eliminatedPlayer.specialRole === 'revenger') {
+      console.log('⚔️ Undercover Revenger eliminated - triggering revenge!');
+      onRevengerEliminated(eliminatedPlayer);
+      return;
+    }
+
+    // Count remaining undercovers after this elimination
+    const remainingUndercovers = players.filter(p => 
+      p.isAlive && 
+      p.id !== eliminatedPlayer.id && 
+      p.role === 'undercover'
+    );
+
+    console.log(`🕵️ Remaining undercovers after elimination: ${remainingUndercovers.length}`);
+
+    if (remainingUndercovers.length === 0) {
+      // Check if Mr. White is still alive
+      const remainingMrWhites = players.filter(p => 
+        p.isAlive && 
+        p.role === 'mrwhite'
+      );
+
+      if (remainingMrWhites.length === 0) {
+        console.log('🎉 All impostors eliminated - Civilians win!');
+      } else {
+        console.log('❓ Mr. White still alive - game continues');
+      }
+    }
+
+    await onPlayerEliminated(eliminatedPlayer);
+  }, [players, onRevengerEliminated, onPlayerEliminated]);
+
+  /**
+   * CASE C: MR. WHITE ELIMINATION
+   * Final guess opportunity if last impostor
+   */
+  const handleMrWhiteElimination = useCallback(async (eliminatedPlayer: Player) => {
+    console.log(`❓ Processing Mr. White elimination: ${eliminatedPlayer.name}`);
+    
+    // Check for special roles first
+    if (eliminatedPlayer.specialRole === 'revenger') {
+      console.log('⚔️ Mr. White Revenger eliminated - triggering revenge!');
+      onRevengerEliminated(eliminatedPlayer);
+      return;
+    }
+
+    // Count ALL remaining impostors (undercover + other Mr. Whites)
     const remainingImpostors = players.filter(p => 
       p.isAlive && 
       p.id !== eliminatedPlayer.id && 
       (p.role === 'undercover' || p.role === 'mrwhite')
     );
 
-    const shouldGuess = remainingImpostors.length === 0;
-    console.log(`Mr. White elimination check: ${remainingImpostors.length} impostors remaining, should guess: ${shouldGuess}`);
-    
-    return shouldGuess;
-  }, [players]);
+    console.log(`❓ Remaining impostors after Mr. White elimination: ${remainingImpostors.length}`);
 
-  /**
-   * Processes the voting results and determines elimination
-   */
-  const processVotingResults = useCallback(async (
-    results: Record<string, number>, 
-    votes: Record<string, string>
-  ) => {
-    try {
-      console.log('Processing voting results:', results);
-      console.log('Individual votes:', votes);
-
-      // Find player(s) with most votes
-      const mostVotedPlayerIds = getMostVotedPlayers(results);
-      
-      if (mostVotedPlayerIds.length === 0) {
-        console.log('No votes cast - continuing game without elimination');
-        setIsProcessingVotes(false);
-        resetVotingState();
-        return;
-      }
-
-      // Resolve ties if necessary
-      const eliminatedPlayerId = resolveTie(mostVotedPlayerIds);
-      
-      if (!eliminatedPlayerId) {
-        // Tie could not be resolved - no elimination this round
-        console.log('Unresolved tie - no elimination this round');
-        setIsProcessingVotes(false);
-        resetVotingState();
-        return;
-      }
-
-      // Find the eliminated player
-      const eliminatedPlayer = players.find(p => p.id === eliminatedPlayerId);
-      if (!eliminatedPlayer) {
-        console.error('Eliminated player not found:', eliminatedPlayerId);
-        setIsProcessingVotes(false);
-        resetVotingState();
-        return;
-      }
-
-      console.log(`Player eliminated: ${eliminatedPlayer.name} (${eliminatedPlayer.role})`);
-      setEliminatedPlayer(eliminatedPlayer);
-
-      // Handle different elimination scenarios based on player role and special abilities
-      if (eliminatedPlayer.role === 'mrwhite' && shouldMrWhiteGuess(eliminatedPlayer)) {
-        // Mr. White is the last impostor - gets to guess
-        console.log('Mr. White gets final guess opportunity');
-        await onMrWhiteEliminated(eliminatedPlayer);
-      } else if (eliminatedPlayer.specialRole === 'revenger') {
-        // Revenger gets to eliminate another player
-        console.log('Revenger eliminated - triggering revenge mechanism');
-        onRevengerEliminated(eliminatedPlayer);
-      } else {
-        // Standard elimination
-        console.log('Standard player elimination');
-        await onPlayerEliminated(eliminatedPlayer);
-      }
-
-    } catch (error) {
-      console.error('Error processing voting results:', error);
-      setIsProcessingVotes(false);
-      resetVotingState();
+    // Mr. White gets final guess ONLY if they're the last impostor
+    if (remainingImpostors.length === 0) {
+      console.log('🎯 Mr. White is last impostor - gets final guess!');
+      await onMrWhiteEliminated(eliminatedPlayer);
+    } else {
+      console.log('🕵️ Other impostors remain - no guess opportunity');
+      await onPlayerEliminated(eliminatedPlayer);
     }
-  }, [
-    getMostVotedPlayers,
-    resolveTie,
-    shouldMrWhiteGuess,
-    players,
-    setEliminatedPlayer,
-    onMrWhiteEliminated,
-    onRevengerEliminated,
-    onPlayerEliminated,
-    setIsProcessingVotes,
-    resetVotingState,
-  ]);
+  }, [players, onRevengerEliminated, onMrWhiteEliminated, onPlayerEliminated]);
 
   /**
-   * Gets current voting statistics for UI display
+   * UTILITY FUNCTIONS
+   * For UI display and game state management
    */
   const getVotingStats = useCallback(() => {
     const votingPlayers = getVotingPlayers();
     const totalVoters = votingPlayers.length;
     const votesCast = Object.keys(individualVotes).length;
-    const votesRemaining = totalVoters - votesCast;
 
     return {
       totalVoters,
       votesCast,
-      votesRemaining,
+      votesRemaining: totalVoters - votesCast,
       isComplete: votesCast >= totalVoters,
       currentVoter: getCurrentVoter(),
+      progress: totalVoters > 0 ? (votesCast / totalVoters) * 100 : 0,
     };
   }, [getVotingPlayers, individualVotes, getCurrentVoter]);
 
-  /**
-   * Gets the current vote distribution for UI display
-   */
   const getVoteDistribution = useCallback(() => {
+    const maxVotes = Math.max(...Object.values(votingResults), 0);
+    
     return Object.entries(votingResults)
       .map(([playerId, votes]) => {
         const player = players.find(p => p.id === playerId);
         return {
           playerId,
           playerName: player?.name || 'Unknown',
+          playerRole: player?.role || 'unknown',
           votes,
-          isLeading: votes === Math.max(...Object.values(votingResults)),
+          isLeading: votes > 0 && votes === maxVotes,
+          isTied: votes === maxVotes && Object.values(votingResults).filter(v => v === maxVotes).length > 1,
         };
       })
       .sort((a, b) => b.votes - a.votes);
   }, [votingResults, players]);
 
+  const hasGoddessOfJustice = useCallback(() => {
+    return players.some(p => 
+      p.specialRole === 'goddess-of-justice' && 
+      (p.isAlive || p.canVote)
+    );
+  }, [players]);
+
   return {
     // Core voting functions
     castVote,
-    processVotingResults,
     
-    // Utility functions
-    validateVote,
-    getMostVotedPlayers,
-    resolveTie,
-    shouldMrWhiteGuess,
-    
-    // Statistics and display helpers
+    // Utility functions for UI
     getVotingStats,
     getVoteDistribution,
+    hasGoddessOfJustice,
+    
+    // Internal functions (exposed for testing)
+    validateVote,
+    determineElimination,
+    processVotingResults,
   };
 };
