@@ -13,7 +13,7 @@ interface UseSpecialRolesProps {
   showRoundResults: (players: Player[]) => void;
 }
 
-export function useSpecialRoles({
+export default function useSpecialRoles({
   players,
   setPlayers,
   setShowRevengerModal,

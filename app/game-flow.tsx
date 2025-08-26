@@ -5,7 +5,7 @@ import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle
 import { GameService } from '@/services/gameService';
 import { useGameState } from '@/hooks/useGameState';
 import { useVotingLogic } from '@/hooks/useVotingLogic';
-import { useSpecialRoles } from '@/hooks/useSpecialRoles';
+import useSpecialRoles from '@/hooks/useSpecialRoles';
 import { VotingPhase } from '@/components/game/VotingPhase';
 import { SpecialRoleModals } from '@/components/game/SpecialRoleModals';
 
