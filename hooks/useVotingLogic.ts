@@ -321,7 +321,7 @@ export class VotingPhase {
    * Handles undercover elimination and win condition checks
    */
   private async handleUndercoverElimination(eliminatedPlayer: Player): Promise<void> {
-    const { players, onRevengerEliminated, onPlayerEliminated, setEliminatedPlayer } = this.props;
+    const { players, onRevengerEliminated, onPlayerEliminated } = this.props;
 
     console.log(`🕵️ Processing undercover elimination: ${eliminatedPlayer.name}`);
     
@@ -332,30 +332,23 @@ export class VotingPhase {
         this.props.onRevengerEliminated(eliminatedPlayer);
         return;
       }
-      return;
     }
 
-    // Count remaining undercovers after this elimination
-    const remainingUndercovers = players.filter(p => 
+    // Count remaining impostors after this elimination
+    const remainingImpostors = players.filter(p => 
       p.isAlive && 
       p.id !== eliminatedPlayer.id && 
-      p.role === 'undercover'
+      (p.role === 'undercover' || p.role === 'mrwhite')
     );
 
-    const remainingMrWhites = players.filter(p => 
-      p.isAlive && 
-      p.role === 'mrwhite'
-    );
+    console.log(`🕵️ After undercover elimination - Remaining impostors: ${remainingImpostors.length}`);
 
-    console.log(`🕵️ After elimination - Undercovers: ${remainingUndercovers.length}, Mr. Whites: ${remainingMrWhites.length}`);
-
-    if (remainingUndercovers.length === 0 && remainingMrWhites.length === 0) {
-      console.log('🎉 All impostors eliminated - Civilians win!');
+    if (remainingImpostors.length === 0) {
+      console.log('🎉 Last impostor eliminated - Civilians win!');
     } else {
       console.log('🔄 Game continues - impostors remain');
     }
 
-    setEliminatedPlayer(eliminatedPlayer);
     await onPlayerEliminated(eliminatedPlayer);
   }
 
@@ -459,11 +452,12 @@ export class VotingPhase {
     const aliveCivilians = alivePlayers.filter(p => p.role === 'civilian');
     const aliveUndercovers = alivePlayers.filter(p => p.role === 'undercover');
     const aliveMrWhites = alivePlayers.filter(p => p.role === 'mrwhite');
+    const totalImpostors = aliveUndercovers.length + aliveMrWhites.length;
 
-    console.log(`🎯 Win check - Civilians: ${aliveCivilians.length}, Undercovers: ${aliveUndercovers.length}, Mr. Whites: ${aliveMrWhites.length}`);
+    console.log(`🎯 Win check - Civilians: ${aliveCivilians.length}, Undercovers: ${aliveUndercovers.length}, Mr. Whites: ${aliveMrWhites.length}, Total Impostors: ${totalImpostors}`);
 
-    // Civilians win: all impostors eliminated
-    if (aliveUndercovers.length === 0 && aliveMrWhites.length === 0) {
+    // CIVILIANS WIN: All impostors (Undercover + Mr. White) eliminated
+    if (totalImpostors === 0) {
       return { 
         winner: 'Civilians', 
         isGameOver: true, 
@@ -471,12 +465,39 @@ export class VotingPhase {
       };
     }
 
-    // Undercover wins: civilians reduced to equal or fewer than undercover agents
-    if (aliveCivilians.length <= aliveUndercovers.length && aliveUndercovers.length > 0) {
+    // IMPOSTORS WIN: Impostors equal or outnumber civilians
+    // This includes scenarios where Undercover + Mr. White together can control votes
+    if (totalImpostors >= aliveCivilians.length && totalImpostors > 0) {
+      // Determine which impostor group gets credit for the win
+      if (aliveUndercovers.length > aliveMrWhites.length) {
+        return { 
+          winner: 'Undercover', 
+          isGameOver: true, 
+          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})` 
+        };
+      } else if (aliveMrWhites.length > aliveUndercovers.length) {
+        return { 
+          winner: 'Mr. White', 
+          isGameOver: true, 
+          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})` 
+        };
+      } else {
+        // Equal numbers or mixed - give win to Undercover (traditional rule)
+        return { 
+          winner: 'Undercover', 
+          isGameOver: true, 
+          reason: `Impostors (${totalImpostors}) equal or outnumber civilians (${aliveCivilians.length})` 
+        };
+      }
+    }
+
+    // SPECIAL CASE: Only Mr. White remains as impostor
+    // Game continues until Mr. White is eliminated (then gets guess) or wins by outnumbering
+    if (aliveUndercovers.length === 0 && aliveMrWhites.length > 0) {
       return { 
-        winner: 'Undercover', 
-        isGameOver: true, 
-        reason: 'Undercover agents equal or outnumber civilians' 
+        winner: null, 
+        isGameOver: false, 
+        reason: 'Only Mr. White remains - game continues until elimination or victory' 
       };
     }
 
@@ -484,7 +505,7 @@ export class VotingPhase {
     return { 
       winner: null, 
       isGameOver: false, 
-      reason: 'Game continues' 
+      reason: `Game continues - Civilians: ${aliveCivilians.length}, Impostors: ${totalImpostors}` 
     };
   }
 
