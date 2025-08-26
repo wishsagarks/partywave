@@ -417,7 +417,7 @@ export default function GameFlow() {
     }
   };
 
-  const showSpecialRoleCard = (player: Player) => {
+  const handleShowSpecialRoleCard = (player: Player) => {
     if (player.specialRole) {
       setCurrentSpecialRolePlayer(player);
       setShowSpecialRoleCard(true);
@@ -523,7 +523,7 @@ export default function GameFlow() {
               {currentPlayer?.specialRole && (
                 <TouchableOpacity
                   style={styles.specialRoleButton}
-                  onPress={() => showSpecialRoleCard(currentPlayer)}
+                  onPress={() => handleShowSpecialRoleCard(currentPlayer)}
                 >
                   <Zap size={16} color="#F59E0B" />
                   <Text style={styles.specialRoleButtonText}>Special Role Info</Text>
