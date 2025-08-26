@@ -1,17 +1,16 @@
 import { useCallback } from 'react';
-import { Alert } from 'react-native';
 import { GameService } from '@/services/gameService';
 import { Player } from '@/types/game';
 
-interface UseVotingLogicProps {
+interface VotingLogicProps {
   players: Player[];
-  votingResults: {[key: string]: number};
-  individualVotes: {[voterId: string]: string};
+  votingResults: Record<string, number>;
+  individualVotes: Record<string, string>;
   currentVoterIndex: number;
   isProcessingVotes: boolean;
   currentRound: number;
-  setVotingResults: (results: {[key: string]: number}) => void;
-  setIndividualVotes: (votes: {[voterId: string]: string}) => void;
+  setVotingResults: (results: Record<string, number>) => void;
+  setIndividualVotes: (votes: Record<string, string>) => void;
   setCurrentVoterIndex: (index: number) => void;
   setIsProcessingVotes: (processing: boolean) => void;
   setEliminatedPlayer: (player: Player | null) => void;
@@ -23,132 +22,137 @@ interface UseVotingLogicProps {
   onRevengerEliminated: (player: Player) => void;
 }
 
-export function useVotingLogic({
-  players,
-  votingResults,
-  individualVotes,
-  currentVoterIndex,
-  isProcessingVotes,
-  currentRound,
-  setVotingResults,
-  setIndividualVotes,
-  setCurrentVoterIndex,
-  setIsProcessingVotes,
-  setEliminatedPlayer,
-  resetVotingState,
-  getVotingPlayers,
-  getCurrentVoter,
-  onPlayerEliminated,
-  onMrWhiteEliminated,
-  onRevengerEliminated,
-}: UseVotingLogicProps) {
-
-  const castVote = useCallback((votedForId: string) => {
-    if (isProcessingVotes) return;
-    
-    const votingPlayers = getVotingPlayers();
-    const currentVoter = getCurrentVoter();
-    
-    if (!currentVoter || individualVotes[currentVoter.id]) {
-      return;
-    }
-    
-    const newIndividualVotes = { ...individualVotes };
-    newIndividualVotes[currentVoter.id] = votedForId;
-    setIndividualVotes(newIndividualVotes);
-    
-    const newResults = { ...votingResults };
-    newResults[votedForId] = (newResults[votedForId] || 0) + 1;
-    setVotingResults(newResults);
-    
-    const totalVotesCast = Object.keys(newIndividualVotes).length;
-    
-    if (totalVotesCast >= votingPlayers.length) {
-      processVotingResults(newResults);
-    } else {
-      setCurrentVoterIndex(currentVoterIndex + 1);
-    }
-  }, [
+export const useVotingLogic = (props: VotingLogicProps) => {
+  const {
+    players,
+    votingResults,
+    individualVotes,
+    currentVoterIndex,
     isProcessingVotes,
+    currentRound,
+    setVotingResults,
+    setIndividualVotes,
+    setCurrentVoterIndex,
+    setIsProcessingVotes,
+    setEliminatedPlayer,
+    resetVotingState,
     getVotingPlayers,
     getCurrentVoter,
+    onPlayerEliminated,
+    onMrWhiteEliminated,
+    onRevengerEliminated,
+  } = props;
+
+  const castVote = useCallback(async (targetId: string) => {
+    try {
+      const currentVoter = getCurrentVoter();
+      if (!currentVoter || isProcessingVotes) return;
+
+      // Record the vote
+      const newIndividualVotes = {
+        ...individualVotes,
+        [currentVoter.id]: targetId,
+      };
+      setIndividualVotes(newIndividualVotes);
+
+      // Update vote counts
+      const newVotingResults = { ...votingResults };
+      newVotingResults[targetId] = (newVotingResults[targetId] || 0) + 1;
+      setVotingResults(newVotingResults);
+
+      const votingPlayers = getVotingPlayers();
+      const nextVoterIndex = currentVoterIndex + 1;
+
+      if (nextVoterIndex >= votingPlayers.length) {
+        // All players have voted, process results
+        setIsProcessingVotes(true);
+        await processVotingResults(newVotingResults, newIndividualVotes);
+      } else {
+        // Move to next voter
+        setCurrentVoterIndex(nextVoterIndex);
+      }
+    } catch (error) {
+      console.error('Error casting vote:', error);
+      setIsProcessingVotes(false);
+    }
+  }, [
+    getCurrentVoter,
+    isProcessingVotes,
     individualVotes,
     votingResults,
     currentVoterIndex,
+    getVotingPlayers,
     setIndividualVotes,
     setVotingResults,
     setCurrentVoterIndex,
+    setIsProcessingVotes,
   ]);
 
-  const processVotingResults = useCallback(async (results: {[key: string]: number}) => {
-    if (isProcessingVotes) return;
-    
-    setIsProcessingVotes(true);
-    
+  const processVotingResults = useCallback(async (results: Record<string, number>, votes: Record<string, string>) => {
     try {
-      // Check for Goddess of Justice
-      const hasGoddessOfJustice = players.some(p => p.specialRole === 'goddess-of-justice' && p.isAlive);
-      
-      const { eliminatedPlayerId, tieResolved } = GameService.resolveVotingTie(players, results, hasGoddessOfJustice);
-      
-      if (!eliminatedPlayerId) {
-        const alivePlayers = players.filter(p => p.isAlive);
-        const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
+      // Find player(s) with most votes
+      const maxVotes = Math.max(...Object.values(results));
+      const mostVotedPlayerIds = Object.keys(results).filter(id => results[id] === maxVotes);
+
+      if (mostVotedPlayerIds.length === 1) {
+        // Single player eliminated
+        const eliminatedPlayerId = mostVotedPlayerIds[0];
+        const eliminatedPlayer = players.find(p => p.id === eliminatedPlayerId);
         
-        const message = tieResolved ? 
-          'There was a tie in voting. Please vote again to eliminate one player.' :
-          'No one received any votes. Randomly eliminating a player.';
+        if (eliminatedPlayer) {
+          setEliminatedPlayer(eliminatedPlayer);
+          
+          // Handle different role eliminations
+          if (eliminatedPlayer.role === 'mrwhite') {
+            await onMrWhiteEliminated(eliminatedPlayer);
+          } else if (eliminatedPlayer.specialRole === 'revenger') {
+            onRevengerEliminated(eliminatedPlayer);
+          } else {
+            await onPlayerEliminated(eliminatedPlayer);
+          }
+        }
+      } else {
+        // Handle tie - check for Goddess of Justice
+        const goddessPlayer = players.find(p => p.specialRole === 'goddess-of-justice' && p.isAlive);
         
-        Alert.alert(tieResolved ? 'Tie Vote!' : 'No Votes', message, [
-          { text: 'OK', onPress: async () => {
-            if (tieResolved) {
-              resetVotingState();
-            } else if (randomPlayer) {
-              await handlePlayerElimination(randomPlayer);
+        if (goddessPlayer) {
+          // Goddess of Justice breaks the tie
+          const randomIndex = Math.floor(Math.random() * mostVotedPlayerIds.length);
+          const eliminatedPlayerId = mostVotedPlayerIds[randomIndex];
+          const eliminatedPlayer = players.find(p => p.id === eliminatedPlayerId);
+          
+          if (eliminatedPlayer) {
+            setEliminatedPlayer(eliminatedPlayer);
+            
+            if (eliminatedPlayer.role === 'mrwhite') {
+              await onMrWhiteEliminated(eliminatedPlayer);
+            } else if (eliminatedPlayer.specialRole === 'revenger') {
+              onRevengerEliminated(eliminatedPlayer);
+            } else {
+              await onPlayerEliminated(eliminatedPlayer);
             }
-          }}
-        ]);
-        return;
-      }
-      
-      const eliminated = players.find(p => p.id === eliminatedPlayerId);
-      if (eliminated) {
-        await handlePlayerElimination(eliminated);
+          }
+        } else {
+          // No elimination due to tie
+          resetVotingState();
+          // Continue to next round or phase
+        }
       }
     } catch (error) {
       console.error('Error processing voting results:', error);
-      Alert.alert('Error', 'Failed to process voting results');
-    } finally {
       setIsProcessingVotes(false);
     }
-  }, [isProcessingVotes, players, currentRound, setIsProcessingVotes, resetVotingState]);
-
-  const handlePlayerElimination = useCallback(async (eliminated: Player) => {
-    setEliminatedPlayer(eliminated);
-    
-    // Check for Joy Fool win condition
-    if (GameService.checkJoyFoolWin(players, eliminated.id, currentRound)) {
-      const finalPlayers = GameService.calculatePoints(players, 'Joy Fool');
-      await onPlayerEliminated(eliminated);
-      return;
-    }
-    
-    // Check for Revenger role
-    if (eliminated.specialRole === 'revenger') {
-      onRevengerEliminated(eliminated);
-      return;
-    }
-    
-    if (eliminated.role === 'mrwhite') {
-      await onMrWhiteEliminated(eliminated);
-    } else {
-      await onPlayerEliminated(eliminated);
-    }
-  }, [players, currentRound, setEliminatedPlayer, onPlayerEliminated, onMrWhiteEliminated, onRevengerEliminated]);
+  }, [
+    players,
+    setEliminatedPlayer,
+    onMrWhiteEliminated,
+    onRevengerEliminated,
+    onPlayerEliminated,
+    resetVotingState,
+  ]);
 
   return {
     castVote,
     processVotingResults,
-    handlePlayerElimination,
   };
-}
+};

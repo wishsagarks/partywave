@@ -1,59 +1,54 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Alert } from 'react-native';
-import { router } from 'expo-router';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { GameService } from '@/services/gameService';
-import { Player, WordPair, GamePhase, SpecialRole, VoteResult } from '@/types/game';
+import { Player } from '@/types/game';
 
-interface UseGameStateProps {
+interface GameStateParams {
   gameId: string;
   playerCount: number;
-  playerNames: string[];
-  playerIds: string[];
-  customRoles?: string;
-  useSpecialRoles?: boolean;
-  selectedSpecialRoles?: string[];
+  playerNames: string;
+  playerIds: string;
+  customRoles: string;
+  useSpecialRoles: boolean;
+  selectedSpecialRoles: string;
 }
 
-export function useGameState({
-  gameId,
-  playerCount,
-  playerNames,
-  playerIds,
-  customRoles,
-  useSpecialRoles,
-  selectedSpecialRoles,
-}: UseGameStateProps) {
+export const useGameState = (params: GameStateParams) => {
+  // Parse parameters
+  const parsedPlayerNames = JSON.parse(params.playerNames || '[]');
+  const parsedPlayerIds = JSON.parse(params.playerIds || '[]');
+  const parsedCustomRoles = params.customRoles ? JSON.parse(params.customRoles) : {};
+  const parsedSelectedSpecialRoles = params.selectedSpecialRoles ? JSON.parse(params.selectedSpecialRoles) : [];
+
   // Core game state
   const [players, setPlayers] = useState<Player[]>([]);
-  const [currentPhase, setCurrentPhase] = useState<GamePhase>('word-distribution');
+  const [currentPhase, setCurrentPhase] = useState<string>('word-distribution');
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [currentRound, setCurrentRound] = useState(1);
-  const [wordPair, setWordPair] = useState<WordPair | null>(null);
-  const [startTime] = useState(new Date());
-  const [gameWinner, setGameWinner] = useState<string>('');
-  
-  // Phase-specific state
+  const [wordPair, setWordPair] = useState<any>(null);
+  const [gameWinner, setGameWinner] = useState<string | null>(null);
   const [wordRevealed, setWordRevealed] = useState(false);
   const [descriptionOrder, setDescriptionOrder] = useState<Player[]>([]);
-  const [currentDescriptionIndex, setCurrentDescriptionIndex] = useState(0);
+  
+  // Timer state
   const [discussionTimer, setDiscussionTimer] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
-  
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Voting state
-  const [votingResults, setVotingResults] = useState<{[key: string]: number}>({});
+  const [votingResults, setVotingResults] = useState<Record<string, number>>({});
+  const [individualVotes, setIndividualVotes] = useState<Record<string, string>>({});
   const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
-  const [individualVotes, setIndividualVotes] = useState<{[voterId: string]: string}>({});
   const [isProcessingVotes, setIsProcessingVotes] = useState(false);
-  
-  // Elimination state
   const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
+
+  // Round results state
   const [showRoundLeaderboard, setShowRoundLeaderboard] = useState(false);
   const [roundLeaderboard, setRoundLeaderboard] = useState<Player[]>([]);
-  
+
   // Mr. White guess state
   const [mrWhiteGuess, setMrWhiteGuess] = useState('');
   const [showMrWhiteGuess, setShowMrWhiteGuess] = useState(false);
-  
+
   // Special roles state
   const [showRevengerModal, setShowRevengerModal] = useState(false);
   const [revengerPlayer, setRevengerPlayer] = useState<Player | null>(null);
@@ -62,76 +57,52 @@ export function useGameState({
 
   // Initialize game
   useEffect(() => {
-    let isMounted = true;
-    
     const initializeGame = async () => {
       try {
-        const selectedWordPair = await GameService.getRandomWordPair();
-        if (!isMounted) return;
-        
-        if (!selectedWordPair) {
-          Alert.alert('Error', 'No active word libraries found. Please enable some word libraries in settings.');
-          if (isMounted) {
-            router.back();
-          }
-          return;
-        }
-        
-        if (isMounted) {
-          setWordPair(selectedWordPair);
-        }
-        
-        const names = JSON.parse(playerNames as any);
-        const ids = JSON.parse(playerIds as any);
-        const roles = customRoles ? JSON.parse(customRoles as any) : undefined;
-        const useSpecial = useSpecialRoles === true || useSpecialRoles === 'true';
-        const specialRoles = selectedSpecialRoles ? JSON.parse(selectedSpecialRoles as any) : [];
-        
-        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids, roles, useSpecial, specialRoles);
-        if (isMounted) {
-          setPlayers(assignedPlayers);
-        }
-        
+        const gameData = await GameService.initializeGame({
+          gameId: params.gameId,
+          playerCount: params.playerCount,
+          playerNames: parsedPlayerNames,
+          playerIds: parsedPlayerIds,
+          customRoles: parsedCustomRoles,
+          useSpecialRoles: params.useSpecialRoles,
+          selectedSpecialRoles: parsedSelectedSpecialRoles,
+        });
+
+        setPlayers(gameData.players);
+        setWordPair(gameData.wordPair);
       } catch (error) {
-        if (isMounted) {
-          Alert.alert('Error', 'Failed to initialize game. Please try again.');
-          console.error('Game initialization error:', error);
-          router.back();
-        }
+        console.error('Failed to initialize game:', error);
       }
     };
-    
+
     initializeGame();
-    
-    return () => {
-      isMounted = false;
-    };
-  }, [gameId, playerCount, playerNames, playerIds, customRoles, useSpecialRoles, selectedSpecialRoles]);
+  }, [params.gameId]);
 
   // Timer effect
   useEffect(() => {
-    let interval: NodeJS.Timeout;
     if (isTimerRunning && discussionTimer > 0) {
-      interval = setInterval(() => {
-        setDiscussionTimer(prev => {
-          if (prev <= 1) {
-            setIsTimerRunning(false);
-            return 0;
-          }
-          return prev - 1;
-        });
+      timerRef.current = setTimeout(() => {
+        setDiscussionTimer(prev => prev - 1);
       }, 1000);
+    } else if (discussionTimer === 0) {
+      setIsTimerRunning(false);
     }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, discussionTimer]);
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [discussionTimer, isTimerRunning]);
 
   // Helper functions
-  const getVotingPlayers = useCallback(() => {
-    return players.filter(p => p.canVote);
+  const getAlivePlayers = useCallback(() => {
+    return players.filter(player => player.isAlive);
   }, [players]);
 
-  const getAlivePlayers = useCallback(() => {
-    return players.filter(p => p.isAlive);
+  const getVotingPlayers = useCallback(() => {
+    return players.filter(player => player.isAlive || player.canVote);
   }, [players]);
 
   const getCurrentVoter = useCallback(() => {
@@ -141,71 +112,47 @@ export function useGameState({
 
   const resetVotingState = useCallback(() => {
     setVotingResults({});
-    setCurrentVoterIndex(0);
     setIndividualVotes({});
+    setCurrentVoterIndex(0);
     setIsProcessingVotes(false);
   }, []);
 
   const generateDescriptionOrder = useCallback((alivePlayers: Player[]) => {
-    const shuffled = [...alivePlayers];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
+    const shuffled = [...alivePlayers].sort(() => Math.random() - 0.5);
     return shuffled;
   }, []);
 
-  const saveGameRound = useCallback(async (
-    eliminatedPlayerId: string, 
-    voteResults: {[key: string]: number}, 
-    mrWhiteGuess?: string, 
-    mrWhiteGuessCorrect?: boolean
-  ) => {
+  const saveGameRound = useCallback(async (eliminatedPlayerId: string, votes: Record<string, number>, mrWhiteGuess?: string, isCorrect?: boolean) => {
     try {
-      await GameService.saveGameRound(
-        gameId,
-        currentRound,
+      await GameService.saveGameRound({
+        gameId: params.gameId,
+        roundNumber: currentRound,
         eliminatedPlayerId,
-        voteResults,
+        voteResults: votes,
         mrWhiteGuess,
-        mrWhiteGuessCorrect
-      );
+        mrWhiteGuessCorrect: isCorrect,
+      });
     } catch (error) {
-      console.error('Error saving game round:', error);
+      console.error('Failed to save game round:', error);
     }
-  }, [gameId, currentRound]);
+  }, [params.gameId, currentRound]);
 
   const saveGameResult = useCallback(async (winner: string, finalPlayers: Player[]) => {
     try {
-      const duration = Math.round((new Date().getTime() - startTime.getTime()) / 60000);
-      const playerIdsArray = JSON.parse(playerIds as any);
-      
-      const gameResult = {
+      await GameService.saveGameResult({
+        gameId: params.gameId,
         winner,
-        players: finalPlayers.map(p => ({
-          name: p.name,
-          role: p.role,
-          word: p.word,
-          points: p.points,
-          wasWinner: (winner === 'Civilians' && p.role === 'civilian') ||
-                    (winner === 'Undercover' && p.role === 'undercover') ||
-                    (winner === 'Mr. White' && p.role === 'mrwhite') ||
-                    (winner === 'Impostors' && (p.role === 'undercover' || p.role === 'mrwhite')),
-        })),
+        players: finalPlayers,
         totalRounds: currentRound,
-        duration,
-      };
-      
-      if (wordPair) {
-        await GameService.saveGameResult(gameId, gameResult, wordPair, playerIdsArray);
-      }
+        wordPair,
+      });
     } catch (error) {
-      console.error('Error saving game result:', error);
+      console.error('Failed to save game result:', error);
     }
-  }, [gameId, currentRound, startTime, playerIds, wordPair]);
+  }, [params.gameId, currentRound, wordPair]);
 
   const showRoundResults = useCallback((updatedPlayers: Player[]) => {
-    const leaderboard = [...updatedPlayers].sort((a, b) => b.points - a.points);
+    const leaderboard = [...updatedPlayers].sort((a, b) => (b.points || 0) - (a.points || 0));
     setRoundLeaderboard(leaderboard);
     setShowRoundLeaderboard(true);
   }, []);
@@ -220,12 +167,11 @@ export function useGameState({
     gameWinner,
     wordRevealed,
     descriptionOrder,
-    currentDescriptionIndex,
     discussionTimer,
     isTimerRunning,
     votingResults,
-    currentVoterIndex,
     individualVotes,
+    currentVoterIndex,
     isProcessingVotes,
     eliminatedPlayer,
     showRoundLeaderboard,
@@ -236,7 +182,7 @@ export function useGameState({
     revengerPlayer,
     showSpecialRoleCard,
     currentSpecialRolePlayer,
-    
+
     // Setters
     setPlayers,
     setCurrentPhase,
@@ -244,24 +190,22 @@ export function useGameState({
     setCurrentRound,
     setWordRevealed,
     setDescriptionOrder,
-    setCurrentDescriptionIndex,
     setDiscussionTimer,
     setIsTimerRunning,
     setVotingResults,
-    setCurrentVoterIndex,
     setIndividualVotes,
+    setCurrentVoterIndex,
     setIsProcessingVotes,
     setEliminatedPlayer,
     setShowRoundLeaderboard,
-    setRoundLeaderboard,
     setMrWhiteGuess,
     setShowMrWhiteGuess,
+    setGameWinner,
     setShowRevengerModal,
     setRevengerPlayer,
     setShowSpecialRoleCard,
     setCurrentSpecialRolePlayer,
-    setGameWinner,
-    
+
     // Helper functions
     getVotingPlayers,
     getAlivePlayers,
@@ -272,4 +216,4 @@ export function useGameState({
     saveGameResult,
     showRoundResults,
   };
-}
+};

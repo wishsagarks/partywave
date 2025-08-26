@@ -1,3 +1,4 @@
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -5,7 +6,7 @@ import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle
 import { GameService } from '@/services/gameService';
 import { useGameState } from '@/hooks/useGameState';
 import { useVotingLogic } from '@/hooks/useVotingLogic';
-import useSpecialRoles from '@/hooks/useSpecialRoles';
+import { useSpecialRoles } from '@/hooks/useSpecialRoles';
 import { VotingPhase } from '@/components/game/VotingPhase';
 import { SpecialRoleModals } from '@/components/game/SpecialRoleModals';
 
@@ -17,17 +18,18 @@ export default function GameFlow() {
     playerNames,
     playerIds,
     customRoles,
-    useSpecialRoles,
+    useSpecialRoles: useSpecialRolesParam,
     selectedSpecialRoles
   } = params;
 
+  // Initialize game state
   const gameState = useGameState({
     gameId: gameId as string,
     playerCount: Number(playerCount),
     playerNames: playerNames as string,
     playerIds: playerIds as string,
     customRoles: customRoles as string,
-    useSpecialRoles: useSpecialRoles as any,
+    useSpecialRoles: useSpecialRolesParam === 'true',
     selectedSpecialRoles: selectedSpecialRoles as string,
   });
 
@@ -77,46 +79,74 @@ export default function GameFlow() {
     showRoundResults,
   } = gameState;
 
-  const handleMrWhiteElimination = async (player: any) => {
-    console.log('Mr. White eliminated:', player.name);
-    setEliminatedPlayer(player);
-    await saveGameRound(player.id, votingResults);
-    setShowMrWhiteGuess(true);
-    setCurrentPhase('mr-white-guess');
-  };
-
-  const handlePlayerElimination = async (player: any) => {
-    const { finalPlayers, chainEliminations } = specialRoles.handleSpecialRoleElimination(player.id, currentRound);
-    
-    await saveGameRound(player.id, votingResults);
-    
-    if (chainEliminations.length > 0) {
-      const chainedNames = chainEliminations
-        .map(id => finalPlayers.find(p => p.id === id)?.name)
-        .filter(Boolean)
-        .join(', ');
-      
-      Alert.alert('Chain Elimination!', `${chainedNames} was also eliminated due to special role effects.`);
-    }
-    
-    const { winner, isGameOver } = GameService.checkWinCondition(finalPlayers);
-    if (isGameOver && winner) {
-      const scoredPlayers = GameService.calculatePoints(finalPlayers, winner);
-      setPlayers(scoredPlayers);
-      setGameWinner(winner);
-      await saveGameResult(winner, scoredPlayers);
-      setCurrentPhase('final-results');
-    } else {
-      showRoundResults(finalPlayers);
-    }
-  };
-
+  // Handle game end
   const handleGameEnd = async (winner: string, finalPlayers: any[]) => {
-    setGameWinner(winner);
-    await saveGameResult(winner, finalPlayers);
-    setCurrentPhase('final-results');
+    try {
+      setGameWinner(winner);
+      await saveGameResult(winner, finalPlayers);
+      setCurrentPhase('final-results');
+    } catch (error) {
+      console.error('Error ending game:', error);
+    }
   };
 
+  // Handle Mr. White elimination
+  const handleMrWhiteElimination = async (player: any) => {
+    try {
+      console.log('Mr. White eliminated:', player.name);
+      setEliminatedPlayer(player);
+      await saveGameRound(player.id, votingResults);
+      setShowMrWhiteGuess(true);
+      setCurrentPhase('mr-white-guess');
+    } catch (error) {
+      console.error('Error handling Mr. White elimination:', error);
+    }
+  };
+
+  // Handle regular player elimination
+  const handlePlayerElimination = async (player: any) => {
+    try {
+      const { finalPlayers, chainEliminations } = specialRoles.handleSpecialRoleElimination(player.id, currentRound);
+      
+      await saveGameRound(player.id, votingResults);
+      
+      if (chainEliminations.length > 0) {
+        const chainedNames = chainEliminations
+          .map(id => finalPlayers.find(p => p.id === id)?.name)
+          .filter(Boolean)
+          .join(', ');
+        
+        Alert.alert('Chain Elimination!', `${chainedNames} was also eliminated due to special role effects.`);
+      }
+      
+      const { winner, isGameOver } = GameService.checkWinCondition(finalPlayers);
+      if (isGameOver && winner) {
+        const scoredPlayers = GameService.calculatePoints(finalPlayers, winner);
+        setPlayers(scoredPlayers);
+        setGameWinner(winner);
+        await saveGameResult(winner, scoredPlayers);
+        setCurrentPhase('final-results');
+      } else {
+        showRoundResults(finalPlayers);
+      }
+    } catch (error) {
+      console.error('Error handling player elimination:', error);
+    }
+  };
+
+  // Initialize special roles hook
+  const specialRoles = useSpecialRoles({
+    players,
+    setPlayers,
+    setShowRevengerModal: gameState.setShowRevengerModal,
+    setRevengerPlayer: gameState.setRevengerPlayer,
+    setShowSpecialRoleCard: gameState.setShowSpecialRoleCard,
+    setCurrentSpecialRolePlayer: gameState.setCurrentSpecialRolePlayer,
+    onGameEnd: handleGameEnd,
+    showRoundResults,
+  });
+
+  // Initialize voting logic
   const votingLogic = useVotingLogic({
     players,
     votingResults,
@@ -135,17 +165,6 @@ export default function GameFlow() {
     onPlayerEliminated: handlePlayerElimination,
     onMrWhiteEliminated: handleMrWhiteElimination,
     onRevengerEliminated: (player) => specialRoles.showRevengerModal(player),
-  });
-
-  const specialRoles = useSpecialRoles({
-    players,
-    setPlayers,
-    setShowRevengerModal: gameState.setShowRevengerModal,
-    setRevengerPlayer: gameState.setRevengerPlayer,
-    setShowSpecialRoleCard: gameState.setShowSpecialRoleCard,
-    setCurrentSpecialRolePlayer: gameState.setCurrentSpecialRolePlayer,
-    onGameEnd: handleGameEnd,
-    showRoundResults,
   });
 
   // Helper functions
@@ -221,17 +240,39 @@ export default function GameFlow() {
   const submitMrWhiteGuess = async () => {
     if (!eliminatedPlayer || !wordPair) return;
     
-    const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
+    try {
+      const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
+      
+      await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
+      
+      if (isCorrect) {
+        const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
+        setPlayers(finalPlayers);
+        setGameWinner('Mr. White');
+        await saveGameResult('Mr. White', finalPlayers);
+        setCurrentPhase('final-results');
+      } else {
+        const newPlayers = players.map(p => 
+          p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
+        );
+        const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
+        setPlayers(finalPlayers);
+        setGameWinner('Civilians');
+        await saveGameResult('Civilians', finalPlayers);
+        setCurrentPhase('final-results');
+      }
+      
+      setShowMrWhiteGuess(false);
+      setMrWhiteGuess('');
+    } catch (error) {
+      console.error('Error submitting Mr. White guess:', error);
+    }
+  };
+
+  const skipMrWhiteGuess = async () => {
+    if (!eliminatedPlayer) return;
     
-    await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
-    
-    if (isCorrect) {
-      const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
-      setPlayers(finalPlayers);
-      setGameWinner('Mr. White');
-      await saveGameResult('Mr. White', finalPlayers);
-      setCurrentPhase('final-results');
-    } else {
+    try {
       const newPlayers = players.map(p => 
         p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
       );
@@ -239,27 +280,13 @@ export default function GameFlow() {
       setPlayers(finalPlayers);
       setGameWinner('Civilians');
       await saveGameResult('Civilians', finalPlayers);
+      
+      setShowMrWhiteGuess(false);
+      setMrWhiteGuess('');
       setCurrentPhase('final-results');
+    } catch (error) {
+      console.error('Error skipping Mr. White guess:', error);
     }
-    
-    setShowMrWhiteGuess(false);
-    setMrWhiteGuess('');
-  };
-
-  const skipMrWhiteGuess = async () => {
-    if (!eliminatedPlayer) return;
-    
-    const newPlayers = players.map(p => 
-      p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
-    );
-    const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
-    setPlayers(finalPlayers);
-    setGameWinner('Civilians');
-    await saveGameResult('Civilians', finalPlayers);
-    
-    setShowMrWhiteGuess(false);
-    setMrWhiteGuess('');
-    setCurrentPhase('final-results');
   };
 
   const nextRound = () => {

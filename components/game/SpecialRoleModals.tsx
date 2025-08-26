@@ -1,23 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { GameService } from '@/services/gameService';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { X, Zap, Target, Heart, Scale, Ghost, Smile, Crown } from 'lucide-react-native';
 import { Player } from '@/types/game';
 
 interface SpecialRoleModalsProps {
-  // Revenger Modal
   showRevengerModal: boolean;
   revengerPlayer: Player | null;
   players: Player[];
   onRevengerChoice: (targetId: string) => void;
-  
-  // Special Role Card Modal
   showSpecialRoleCard: boolean;
   currentSpecialRolePlayer: Player | null;
   onCloseSpecialRoleCard: () => void;
 }
 
-export function SpecialRoleModals({
+export const SpecialRoleModals: React.FC<SpecialRoleModalsProps> = ({
   showRevengerModal,
   revengerPlayer,
   players,
@@ -25,202 +21,302 @@ export function SpecialRoleModals({
   showSpecialRoleCard,
   currentSpecialRolePlayer,
   onCloseSpecialRoleCard,
-}: SpecialRoleModalsProps) {
-  const getRoleColor = (role: string) => {
+}) => {
+  const getSpecialRoleInfo = (role: string) => {
     switch (role) {
-      case 'civilian': return '#10B981';
-      case 'undercover': return '#EF4444';
-      case 'mrwhite': return '#F59E0B';
-      default: return '#6B7280';
+      case 'revenger':
+        return {
+          icon: Target,
+          color: '#EF4444',
+          title: 'Revenger',
+          description: 'When eliminated, you can choose another player to eliminate with you.',
+          ability: 'Chain Elimination'
+        };
+      case 'lovers':
+        return {
+          icon: Heart,
+          color: '#EC4899',
+          title: 'Lovers',
+          description: 'If one lover is eliminated, the other lover is also eliminated.',
+          ability: 'Shared Fate'
+        };
+      case 'goddess-of-justice':
+        return {
+          icon: Scale,
+          color: '#8B5CF6',
+          title: 'Goddess of Justice',
+          description: 'When there is a tie in voting, you automatically break the tie.',
+          ability: 'Tie Breaker'
+        };
+      case 'ghost':
+        return {
+          icon: Ghost,
+          color: '#6B7280',
+          title: 'Ghost',
+          description: 'Even after elimination, you can still participate in voting.',
+          ability: 'Posthumous Voting'
+        };
+      case 'mr-meme':
+        return {
+          icon: Smile,
+          color: '#F59E0B',
+          title: 'Mr. Meme',
+          description: 'You can only communicate through gestures and miming - no verbal clues allowed!',
+          ability: 'Silent Communication'
+        };
+      case 'joy-fool':
+        return {
+          icon: Crown,
+          color: '#10B981',
+          title: 'Joy Fool',
+          description: 'If eliminated in the first round, you gain bonus points.',
+          ability: 'Early Elimination Bonus'
+        };
+      default:
+        return {
+          icon: Zap,
+          color: '#8B5CF6',
+          title: 'Special Role',
+          description: 'You have a special ability in this game.',
+          ability: 'Unknown'
+        };
     }
   };
 
-  const getRoleName = (role: string) => {
-    switch (role) {
-      case 'civilian': return 'Civilian';
-      case 'undercover': return 'Undercover';
-      case 'mrwhite': return 'Mr. White';
-      default: return 'Unknown';
-    }
-  };
-
-  const getRoleEmoji = (role: string) => {
-    switch (role) {
-      case 'civilian': return '👥';
-      case 'undercover': return '🕵️';
-      case 'mrwhite': return '❓';
-      default: return '❓';
-    }
-  };
+  const alivePlayers = players.filter(p => p.isAlive && p.id !== revengerPlayer?.id);
 
   return (
     <>
-      {/* Revenger Choice Modal */}
+      {/* Revenger Modal */}
       <Modal
         visible={showRevengerModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
       >
-        <LinearGradient
-          colors={['#1F2937', '#111827']}
-          style={styles.modalContainer}
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>⚔️ Revenger's Choice</Text>
-          </View>
-
-          <View style={styles.centerContent}>
-            <Text style={styles.revengerInstructions}>
-              {revengerPlayer?.name}, you have been eliminated! 
-              As the Revenger, choose one player to eliminate with you:
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Target size={24} color="#EF4444" />
+              <Text style={styles.modalTitle}>Revenger's Choice</Text>
+            </View>
+            
+            <Text style={styles.modalDescription}>
+              {revengerPlayer?.name} was eliminated! As the Revenger, choose another player to eliminate with you.
             </Text>
             
-            <ScrollView style={styles.revengerTargets}>
-              {players
-                .filter(p => p.isAlive && p.id !== revengerPlayer?.id)
-                .map((player) => (
+            <ScrollView style={styles.playersList}>
+              {alivePlayers.map((player) => (
                 <TouchableOpacity
                   key={player.id}
-                  style={styles.revengerTargetButton}
+                  style={styles.playerOption}
                   onPress={() => onRevengerChoice(player.id)}
                 >
-                  <Text style={styles.revengerTargetName}>{player.name}</Text>
-                  <Text style={styles.revengerTargetRole}>
-                    {getRoleEmoji(player.role)} {getRoleName(player.role)}
+                  <Text style={styles.playerOptionName}>{player.name}</Text>
+                  <Text style={styles.playerOptionRole}>
+                    {player.role === 'civilian' ? '👥' : player.role === 'undercover' ? '🕵️' : '❓'} 
+                    {player.role}
                   </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
           </View>
-        </LinearGradient>
+        </View>
       </Modal>
 
       {/* Special Role Card Modal */}
       <Modal
         visible={showSpecialRoleCard}
-        animationType="fade"
-        transparent={true}
+        transparent
+        animationType="slide"
+        onRequestClose={onCloseSpecialRoleCard}
       >
-        <View style={styles.specialRoleModalOverlay}>
-          <View style={styles.specialRoleModalContent}>
-            <Text style={styles.specialRoleModalTitle}>
-              {GameService.getSpecialRoleEmoji(currentSpecialRolePlayer?.specialRole!)} Special Role
-            </Text>
-            <Text style={styles.specialRoleModalName}>
-              {currentSpecialRolePlayer?.specialRole?.split('-').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1)
-              ).join(' ')}
-            </Text>
-            <Text style={styles.specialRoleModalDescription}>
-              {currentSpecialRolePlayer?.specialRole && 
-                GameService.getSpecialRoleDescription(currentSpecialRolePlayer.specialRole)
-              }
-            </Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.roleCardContainer}>
             <TouchableOpacity
-              style={styles.specialRoleModalButton}
+              style={styles.closeButton}
               onPress={onCloseSpecialRoleCard}
             >
-              <Text style={styles.specialRoleModalButtonText}>Got it!</Text>
+              <X size={24} color="#9CA3AF" />
             </TouchableOpacity>
+            
+            {currentSpecialRolePlayer?.specialRole && (() => {
+              const roleInfo = getSpecialRoleInfo(currentSpecialRolePlayer.specialRole);
+              const IconComponent = roleInfo.icon;
+              
+              return (
+                <>
+                  <View style={styles.roleCardHeader}>
+                    <IconComponent size={32} color={roleInfo.color} />
+                    <Text style={[styles.roleCardTitle, { color: roleInfo.color }]}>
+                      {roleInfo.title}
+                    </Text>
+                  </View>
+                  
+                  <View style={styles.roleCardContent}>
+                    <Text style={styles.roleCardDescription}>
+                      {roleInfo.description}
+                    </Text>
+                    
+                    <View style={styles.abilityBadge}>
+                      <Zap size={16} color="#F59E0B" />
+                      <Text style={styles.abilityText}>{roleInfo.ability}</Text>
+                    </View>
+                    
+                    {currentSpecialRolePlayer.specialRole === 'mr-meme' && (
+                      <View style={styles.warningBox}>
+                        <Text style={styles.warningText}>
+                          ⚠️ Remember: You can only use gestures and miming. No verbal clues allowed!
+                        </Text>
+                      </View>
+                    )}
+                    
+                    {currentSpecialRolePlayer.specialRole === 'ghost' && !currentSpecialRolePlayer.isAlive && (
+                      <View style={styles.infoBox}>
+                        <Text style={styles.infoText}>
+                          👻 You're eliminated but can still vote in future rounds!
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
     </>
   );
-}
+};
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#F3F4F6',
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  revengerInstructions: {
-    fontSize: 18,
-    color: '#EF4444',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
-  },
-  revengerTargets: {
-    flex: 1,
-    width: '100%',
-    paddingHorizontal: 20,
-  },
-  revengerTargetButton: {
-    backgroundColor: '#374151',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#EF4444',
-  },
-  revengerTargetName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#F3F4F6',
-    marginBottom: 4,
-  },
-  revengerTargetRole: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  specialRoleModalOverlay: {
+  modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
-  specialRoleModalContent: {
+  modalContainer: {
     backgroundColor: '#374151',
-    padding: 24,
     borderRadius: 16,
-    alignItems: 'center',
-    gap: 16,
-    maxWidth: 320,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
   },
-  specialRoleModalTitle: {
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#F59E0B',
+    color: '#F3F4F6',
   },
-  specialRoleModalName: {
-    fontSize: 18,
+  modalDescription: {
+    fontSize: 16,
+    color: '#D1D5DB',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  playersList: {
+    maxHeight: 300,
+  },
+  playerOption: {
+    backgroundColor: '#1F2937',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  playerOptionName: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#F3F4F6',
-    textAlign: 'center',
   },
-  specialRoleModalDescription: {
+  playerOptionRole: {
     fontSize: 14,
+    color: '#9CA3AF',
+  },
+  roleCardContainer: {
+    backgroundColor: '#374151',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    position: 'relative',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 1,
+  },
+  roleCardHeader: {
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+  roleCardTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  roleCardContent: {
+    gap: 16,
+  },
+  roleCardDescription: {
+    fontSize: 16,
     color: '#D1D5DB',
+    lineHeight: 22,
     textAlign: 'center',
-    lineHeight: 20,
   },
-  specialRoleModalButton: {
-    backgroundColor: '#8B5CF6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+  abilityBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
   },
-  specialRoleModalButtonText: {
-    color: 'white',
+  abilityText: {
+    color: '#F59E0B',
     fontSize: 14,
     fontWeight: '600',
+  },
+  warningBox: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  warningText: {
+    color: '#EF4444',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+  infoBox: {
+    backgroundColor: 'rgba(107, 114, 128, 0.1)',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#6B7280',
+  },
+  infoText: {
+    color: '#6B7280',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500',
   },
 });

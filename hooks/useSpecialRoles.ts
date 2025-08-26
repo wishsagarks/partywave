@@ -13,7 +13,7 @@ interface UseSpecialRolesProps {
   showRoundResults: (players: Player[]) => void;
 }
 
-const useSpecialRolesLogic = (props: UseSpecialRolesProps) => {
+export const useSpecialRoles = (props: UseSpecialRolesProps) => {
   const {
     players,
     setPlayers,
@@ -33,44 +33,53 @@ const useSpecialRolesLogic = (props: UseSpecialRolesProps) => {
   }, [setCurrentSpecialRolePlayer, setShowSpecialRoleCard]);
 
   const handleRevengerChoice = useCallback(async (targetId: string) => {
-    const revengerPlayer = players.find(p => p.specialRole === 'revenger' && !p.isAlive);
-    if (!revengerPlayer) return;
-    
-    // First eliminate the revenger
-    const updatedPlayersAfterRevenger = players.map(p => 
-      p.id === revengerPlayer.id ? { ...p, isAlive: false, eliminationRound: 1 } : p
-    );
-    
-    // Then eliminate their target
-    const finalPlayers = GameService.handleRevengerElimination(updatedPlayersAfterRevenger, revengerPlayer.id, targetId);
-    setPlayers(finalPlayers);
-    
-    setShowRevengerModal(false);
-    setRevengerPlayer(null);
-    
-    // Check win condition after chain eliminations
-    const { winner, isGameOver } = GameService.checkWinCondition(finalPlayers);
-    if (isGameOver && winner) {
-      const scoredPlayers = GameService.calculatePoints(finalPlayers, winner);
-      setPlayers(scoredPlayers);
-      await onGameEnd(winner, scoredPlayers);
-    } else {
-      showRoundResults(finalPlayers);
+    try {
+      const revengerPlayer = players.find(p => p.specialRole === 'revenger' && !p.isAlive);
+      if (!revengerPlayer) return;
+      
+      // First eliminate the revenger
+      const updatedPlayersAfterRevenger = players.map(p => 
+        p.id === revengerPlayer.id ? { ...p, isAlive: false, eliminationRound: 1 } : p
+      );
+      
+      // Then eliminate their target
+      const finalPlayers = GameService.handleRevengerElimination(updatedPlayersAfterRevenger, revengerPlayer.id, targetId);
+      setPlayers(finalPlayers);
+      
+      setShowRevengerModal(false);
+      setRevengerPlayer(null);
+      
+      // Check win condition after chain eliminations
+      const { winner, isGameOver } = GameService.checkWinCondition(finalPlayers);
+      if (isGameOver && winner) {
+        const scoredPlayers = GameService.calculatePoints(finalPlayers, winner);
+        setPlayers(scoredPlayers);
+        await onGameEnd(winner, scoredPlayers);
+      } else {
+        showRoundResults(finalPlayers);
+      }
+    } catch (error) {
+      console.error('Error handling revenger choice:', error);
     }
   }, [players, setPlayers, setShowRevengerModal, setRevengerPlayer, onGameEnd, showRoundResults]);
 
   const handleSpecialRoleElimination = useCallback((playerId: string, currentRound: number) => {
-    // Handle special role eliminations and chain reactions
-    const { updatedPlayers, chainEliminations } = GameService.handleSpecialRoleElimination(players, playerId);
-    
-    // Mark primary player as eliminated
-    const finalPlayers = updatedPlayers.map(p => 
-      p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
-    );
-    
-    setPlayers(finalPlayers);
-    
-    return { finalPlayers, chainEliminations };
+    try {
+      // Handle special role eliminations and chain reactions
+      const { updatedPlayers, chainEliminations } = GameService.handleSpecialRoleElimination(players, playerId);
+      
+      // Mark primary player as eliminated
+      const finalPlayers = updatedPlayers.map(p => 
+        p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
+      );
+      
+      setPlayers(finalPlayers);
+      
+      return { finalPlayers, chainEliminations };
+    } catch (error) {
+      console.error('Error handling special role elimination:', error);
+      return { finalPlayers: players, chainEliminations: [] };
+    }
   }, [players, setPlayers]);
 
   const showRevengerModal = useCallback((player: Player) => {
@@ -82,10 +91,6 @@ const useSpecialRolesLogic = (props: UseSpecialRolesProps) => {
     handleShowSpecialRoleCard,
     handleRevengerChoice,
     handleSpecialRoleElimination,
-  }
-}
-const useSpecialRoles = (props: UseSpecialRolesProps) => {
-  return useSpecialRolesLogic(props);
+    showRevengerModal,
+  };
 };
-
-export default useSpecialRoles;

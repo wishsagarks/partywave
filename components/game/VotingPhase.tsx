@@ -1,21 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Vote, Users, Clock, CheckCircle } from 'lucide-react-native';
 import { Player } from '@/types/game';
 
 interface VotingPhaseProps {
   players: Player[];
   currentRound: number;
   currentVoter: Player | null;
-  votingResults: {[key: string]: number};
-  individualVotes: {[voterId: string]: string};
+  votingResults: Record<string, number>;
+  individualVotes: Record<string, string>;
   isProcessingVotes: boolean;
-  onCastVote: (votedForId: string) => void;
+  onCastVote: (targetId: string) => void;
   getVotingPlayers: () => Player[];
   getAlivePlayers: () => Player[];
 }
 
-export function VotingPhase({
+export const VotingPhase: React.FC<VotingPhaseProps> = ({
   players,
   currentRound,
   currentVoter,
@@ -25,64 +26,169 @@ export function VotingPhase({
   onCastVote,
   getVotingPlayers,
   getAlivePlayers,
-}: VotingPhaseProps) {
+}) => {
   const votingPlayers = getVotingPlayers();
   const alivePlayers = getAlivePlayers();
-  const hasVoted = currentVoter ? individualVotes[currentVoter.id] : false;
-  const currentVoterIndex = votingPlayers.findIndex(p => p.id === currentVoter?.id);
+  const votedCount = Object.keys(individualVotes).length;
+  const totalVoters = votingPlayers.length;
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'civilian': return '#10B981';
+      case 'undercover': return '#EF4444';
+      case 'mrwhite': return '#F59E0B';
+      default: return '#6B7280';
+    }
+  };
+
+  const getRoleName = (role: string) => {
+    switch (role) {
+      case 'civilian': return 'Civilian';
+      case 'undercover': return 'Undercover';
+      case 'mrwhite': return 'Mr. White';
+      default: return 'Unknown';
+    }
+  };
+
+  const getRoleEmoji = (role: string) => {
+    switch (role) {
+      case 'civilian': return '👥';
+      case 'undercover': return '🕵️';
+      case 'mrwhite': return '❓';
+      default: return '❓';
+    }
+  };
+
+  if (isProcessingVotes) {
+    return (
+      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Processing Votes...</Text>
+          <Text style={styles.subtitle}>Round {currentRound}</Text>
+        </View>
+
+        <View style={styles.centerContent}>
+          <View style={styles.processingCard}>
+            <Clock size={32} color="#8B5CF6" />
+            <Text style={styles.processingText}>Counting votes and determining elimination...</Text>
+          </View>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  if (!currentVoter) {
+    return (
+      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Voting Complete</Text>
+          <Text style={styles.subtitle}>Round {currentRound}</Text>
+        </View>
+      </LinearGradient>
+    );
+  }
 
   return (
     <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
       <View style={styles.header}>
+        <Vote size={24} color="#8B5CF6" />
         <Text style={styles.title}>Voting Phase</Text>
-        <Text style={styles.subtitle}>
-          Round {currentRound} • Voter {currentVoterIndex + 1}/{votingPlayers.length}
-        </Text>
+        <Text style={styles.subtitle}>Round {currentRound}</Text>
       </View>
 
-      <View style={styles.centerContent}>
-        <Text style={styles.passPhoneText}>Pass the phone to:</Text>
-        <Text style={styles.currentPlayerName}>{currentVoter?.name}</Text>
-        
-        <Text style={styles.votingInstructions}>
-          Vote to eliminate the most suspicious player:
+      <View style={styles.votingProgress}>
+        <Text style={styles.progressText}>
+          {votedCount} / {totalVoters} players have voted
         </Text>
-      </View>
-
-      <ScrollView style={styles.votingContainer}>
-        {alivePlayers
-          .filter(player => player.id !== currentVoter?.id)
-          .map((player) => (
-          <TouchableOpacity
-            key={player.id}
+        <View style={styles.progressBar}>
+          <View 
             style={[
-              styles.voteButton,
-              hasVoted && { opacity: 0.5 }
-            ]}
-            onPress={() => onCastVote(player.id)}
-            disabled={hasVoted || isProcessingVotes}
-          >
-            <Text style={styles.votePlayerName}>{player.name}</Text>
-            <Text style={styles.voteCount}>
-              Current Votes: {votingResults[player.id] || 0}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              styles.progressFill, 
+              { width: `${(votedCount / totalVoters) * 100}%` }
+            ]} 
+          />
+        </View>
+      </View>
+
+      <View style={styles.currentVoterCard}>
+        <Text style={styles.currentVoterLabel}>Current Voter:</Text>
+        <Text style={styles.currentVoterName}>{currentVoter.name}</Text>
+        {currentVoter.specialRole && (
+          <Text style={styles.specialRoleText}>
+            ⚡ {currentVoter.specialRole.replace('-', ' ').toUpperCase()}
+          </Text>
+        )}
+        <Text style={styles.votingInstructions}>
+          Choose who you think should be eliminated
+        </Text>
+      </View>
+
+      <ScrollView style={styles.playersContainer}>
+        <Text style={styles.sectionTitle}>Vote to Eliminate:</Text>
+        {alivePlayers.map((player) => {
+          const voteCount = votingResults[player.id] || 0;
+          const isCurrentVoter = player.id === currentVoter.id;
+          
+          return (
+            <TouchableOpacity
+              key={player.id}
+              style={[
+                styles.playerCard,
+                isCurrentVoter && styles.currentVoterPlayerCard
+              ]}
+              onPress={() => !isCurrentVoter && onCastVote(player.id)}
+              disabled={isCurrentVoter}
+            >
+              <View style={styles.playerInfo}>
+                <Text style={styles.playerName}>{player.name}</Text>
+                <Text style={[styles.playerRole, { color: getRoleColor(player.role) }]}>
+                  {getRoleEmoji(player.role)} {getRoleName(player.role)}
+                </Text>
+                {player.specialRole && (
+                  <Text style={styles.playerSpecialRole}>
+                    ⚡ {player.specialRole.replace('-', ' ')}
+                  </Text>
+                )}
+              </View>
+              
+              <View style={styles.voteInfo}>
+                {voteCount > 0 && (
+                  <View style={styles.voteCount}>
+                    <Text style={styles.voteCountText}>{voteCount}</Text>
+                  </View>
+                )}
+                {isCurrentVoter ? (
+                  <Text style={styles.cannotVoteText}>Cannot vote for self</Text>
+                ) : (
+                  <Text style={styles.tapToVoteText}>Tap to vote</Text>
+                )}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
-      {hasVoted && currentVoter && (
-        <View style={styles.votedConfirmation}>
-          <Text style={styles.votedText}>
-            ✓ Vote cast for {players.find(p => p.id === individualVotes[currentVoter.id])?.name}
-          </Text>
-          <Text style={styles.waitingText}>
-            Waiting for {votingPlayers.length - Object.keys(individualVotes).length} more players to vote...
-          </Text>
+      {votedCount > 0 && (
+        <View style={styles.votingSummary}>
+          <Text style={styles.summaryTitle}>Current Votes:</Text>
+          <View style={styles.summaryList}>
+            {Object.entries(votingResults)
+              .sort(([,a], [,b]) => b - a)
+              .map(([playerId, count]) => {
+                const player = players.find(p => p.id === playerId);
+                return player ? (
+                  <View key={playerId} style={styles.summaryItem}>
+                    <Text style={styles.summaryPlayerName}>{player.name}</Text>
+                    <Text style={styles.summaryVoteCount}>{count} vote{count !== 1 ? 's' : ''}</Text>
+                  </View>
+                ) : null;
+              })}
+          </View>
         </View>
       )}
     </LinearGradient>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -103,68 +209,167 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9CA3AF',
   },
-  centerContent: {
-    alignItems: 'center',
-    padding: 20,
+  votingProgress: {
+    paddingHorizontal: 20,
+    marginBottom: 20,
   },
-  passPhoneText: {
-    fontSize: 18,
-    color: '#D1D5DB',
-    marginBottom: 12,
-  },
-  currentPlayerName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#8B5CF6',
-    marginBottom: 32,
-  },
-  votingInstructions: {
-    fontSize: 18,
+  progressText: {
+    fontSize: 14,
     color: '#D1D5DB',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 8,
   },
-  votingContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  voteButton: {
+  progressBar: {
+    height: 4,
     backgroundColor: '#374151',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#4B5563',
+    borderRadius: 2,
+    overflow: 'hidden',
   },
-  votePlayerName: {
-    fontSize: 16,
-    color: '#F3F4F6',
-    fontWeight: '600',
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#8B5CF6',
   },
-  voteCount: {
-    fontSize: 14,
-    color: '#8B5CF6',
-    fontWeight: '500',
-  },
-  votedConfirmation: {
+  currentVoterCard: {
     backgroundColor: '#374151',
     margin: 20,
-    padding: 16,
+    padding: 20,
     borderRadius: 12,
     alignItems: 'center',
     gap: 8,
   },
-  votedText: {
-    fontSize: 16,
-    color: '#10B981',
-    fontWeight: '600',
-  },
-  waitingText: {
+  currentVoterLabel: {
     fontSize: 14,
     color: '#9CA3AF',
+  },
+  currentVoterName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#8B5CF6',
+  },
+  specialRoleText: {
+    fontSize: 12,
+    color: '#F59E0B',
+    fontWeight: '600',
+  },
+  votingInstructions: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    textAlign: 'center',
     fontStyle: 'italic',
+  },
+  playersContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+    marginBottom: 12,
+  },
+  playerCard: {
+    backgroundColor: '#374151',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  currentVoterPlayerCard: {
+    backgroundColor: '#1F2937',
+    borderWidth: 1,
+    borderColor: '#6B7280',
+  },
+  playerInfo: {
+    flex: 1,
+    gap: 4,
+  },
+  playerName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  playerRole: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  playerSpecialRole: {
+    fontSize: 10,
+    color: '#F59E0B',
+  },
+  voteInfo: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  voteCount: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  voteCountText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  tapToVoteText: {
+    fontSize: 12,
+    color: '#8B5CF6',
+    fontWeight: '600',
+  },
+  cannotVoteText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontStyle: 'italic',
+  },
+  votingSummary: {
+    backgroundColor: '#374151',
+    margin: 20,
+    padding: 16,
+    borderRadius: 12,
+  },
+  summaryTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+    marginBottom: 8,
+  },
+  summaryList: {
+    gap: 4,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryPlayerName: {
+    fontSize: 12,
+    color: '#D1D5DB',
+  },
+  summaryVoteCount: {
+    fontSize: 12,
+    color: '#8B5CF6',
+    fontWeight: '600',
+  },
+  centerContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  processingCard: {
+    backgroundColor: '#374151',
+    padding: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: 16,
+  },
+  processingText: {
+    fontSize: 16,
+    color: '#D1D5DB',
+    textAlign: 'center',
   },
 });
