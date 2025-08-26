@@ -82,6 +82,8 @@ const useSpecialRolesLogic = (props: UseSpecialRolesProps) => {
     handleShowSpecialRoleCard,
     handleRevengerChoice,
     handleSpecialRoleElimination,
+  }
+}
 const useSpecialRoles = (props: UseSpecialRolesProps) => {
   return useSpecialRolesLogic(props);
 };
