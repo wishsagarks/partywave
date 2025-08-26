@@ -95,7 +95,7 @@ export default function GameFlow() {
     try {
       console.log('Mr. White eliminated:', player.name);
       setEliminatedPlayer(player);
-      await GameService.saveGameRound(gameId as string, currentRound, player.id, votingResults);
+      await saveGameRound(player.id, votingResults);
       setShowMrWhiteGuess(true);
       setCurrentPhase('mr-white-guess');
     } catch (error) {
@@ -252,15 +252,13 @@ export default function GameFlow() {
     try {
       const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
       
-      await GameService.saveGameRound(gameId as string, currentRound, eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
+      await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
       
       if (isCorrect) {
         // Mr. White wins with correct guess
         const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
         setPlayers(finalPlayers);
-        setGameWinner('Mr. White');
-        await saveGameResult('Mr. White', finalPlayers);
-        setCurrentPhase('final-results');
+        await handleGameEnd('Mr. White', finalPlayers);
       } else {
         // Mr. White guessed wrong - eliminate them and check win conditions
         const playersAfterElimination = players.map(p => 
@@ -271,11 +269,8 @@ export default function GameFlow() {
         const { winner, isGameOver } = GameService.checkWinCondition(playersAfterElimination);
         
         if (isGameOver && winner) {
-          const finalPlayers = GameService.calculatePoints(playersAfterElimination, winner);
-          setPlayers(finalPlayers);
-          setGameWinner(winner);
-          await saveGameResult(winner, finalPlayers);
-          setCurrentPhase('final-results');
+          const scoredPlayers = GameService.calculatePoints(playersAfterElimination, winner);
+          await handleGameEnd(winner, scoredPlayers);
         } else {
           // Game continues - show round results
           setPlayers(playersAfterElimination);
@@ -303,11 +298,8 @@ export default function GameFlow() {
       const { winner, isGameOver } = GameService.checkWinCondition(playersAfterElimination);
       
       if (isGameOver && winner) {
-        const finalPlayers = GameService.calculatePoints(playersAfterElimination, winner);
-        setPlayers(finalPlayers);
-        setGameWinner(winner);
-        await saveGameResult(winner, finalPlayers);
-        setCurrentPhase('final-results');
+        const scoredPlayers = GameService.calculatePoints(playersAfterElimination, winner);
+        await handleGameEnd(winner, scoredPlayers);
       } else {
         // Game continues - show round results
         setPlayers(playersAfterElimination);
