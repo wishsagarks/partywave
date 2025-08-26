@@ -141,9 +141,6 @@ export const VotingPhase: React.FC<VotingPhaseProps> = ({
             >
               <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>{player.name}</Text>
-                <Text style={styles.playerStatus}>
-                  {player.isAlive ? '🟢 Alive' : '🔴 Eliminated'}
-                </Text>
               </View>
               
               <View style={styles.voteInfo}>
