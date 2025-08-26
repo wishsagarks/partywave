@@ -255,20 +255,32 @@ export default function GameFlow() {
       await GameService.saveGameRound(gameId as string, currentRound, eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
       
       if (isCorrect) {
+        // Mr. White wins with correct guess
         const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
         setPlayers(finalPlayers);
         setGameWinner('Mr. White');
         await saveGameResult('Mr. White', finalPlayers);
         setCurrentPhase('final-results');
       } else {
-        const newPlayers = players.map(p => 
+        // Mr. White guessed wrong - eliminate them and check win conditions
+        const playersAfterElimination = players.map(p => 
           p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
         );
-        const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
-        setPlayers(finalPlayers);
-        setGameWinner('Civilians');
-        await saveGameResult('Civilians', finalPlayers);
-        setCurrentPhase('final-results');
+        
+        // Check win conditions after Mr. White elimination
+        const { winner, isGameOver } = GameService.checkWinCondition(playersAfterElimination);
+        
+        if (isGameOver && winner) {
+          const finalPlayers = GameService.calculatePoints(playersAfterElimination, winner);
+          setPlayers(finalPlayers);
+          setGameWinner(winner);
+          await saveGameResult(winner, finalPlayers);
+          setCurrentPhase('final-results');
+        } else {
+          // Game continues - show round results
+          setPlayers(playersAfterElimination);
+          showRoundResults(playersAfterElimination);
+        }
       }
       
       setShowMrWhiteGuess(false);
@@ -282,17 +294,28 @@ export default function GameFlow() {
     if (!eliminatedPlayer) return;
     
     try {
-      const newPlayers = players.map(p => 
+      // Mr. White skipped guess - eliminate them and check win conditions
+      const playersAfterElimination = players.map(p => 
         p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
       );
-      const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
-      setPlayers(finalPlayers);
-      setGameWinner('Civilians');
-      await saveGameResult('Civilians', finalPlayers);
+      
+      // Check win conditions after Mr. White elimination
+      const { winner, isGameOver } = GameService.checkWinCondition(playersAfterElimination);
+      
+      if (isGameOver && winner) {
+        const finalPlayers = GameService.calculatePoints(playersAfterElimination, winner);
+        setPlayers(finalPlayers);
+        setGameWinner(winner);
+        await saveGameResult(winner, finalPlayers);
+        setCurrentPhase('final-results');
+      } else {
+        // Game continues - show round results
+        setPlayers(playersAfterElimination);
+        showRoundResults(playersAfterElimination);
+      }
       
       setShowMrWhiteGuess(false);
       setMrWhiteGuess('');
-      setCurrentPhase('final-results');
     } catch (error) {
       console.error('Error skipping Mr. White guess:', error);
     }

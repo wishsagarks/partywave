@@ -356,7 +356,7 @@ export class VotingPhase {
    * Handles Mr. White elimination with final guess logic
    */
   private async handleMrWhiteElimination(eliminatedPlayer: Player): Promise<void> {
-    const { players, onRevengerEliminated, onMrWhiteEliminated, onPlayerEliminated, setEliminatedPlayer } = this.props;
+    const { players, onRevengerEliminated, onMrWhiteEliminated, setEliminatedPlayer } = this.props;
 
     console.log(`❓ Processing Mr. White elimination: ${eliminatedPlayer.name}`);
     
@@ -367,28 +367,12 @@ export class VotingPhase {
         this.props.onRevengerEliminated(eliminatedPlayer);
         return;
       }
-      return;
     }
 
-    // Count ALL remaining impostors (undercover + other Mr. Whites)
-    const remainingImpostors = players.filter(p => 
-      p.isAlive && 
-      p.id !== eliminatedPlayer.id && 
-      (p.role === 'undercover' || p.role === 'mrwhite')
-    );
-
-    console.log(`❓ Remaining impostors after Mr. White elimination: ${remainingImpostors.length}`);
-
-    // Mr. White gets final guess ONLY if they're the last impostor
-    if (remainingImpostors.length === 0) {
-      console.log('🎯 Mr. White is last impostor - gets final guess opportunity!');
-      setEliminatedPlayer(eliminatedPlayer);
-      await onMrWhiteEliminated(eliminatedPlayer);
-    } else {
-      console.log('🕵️ Other impostors remain - treating as regular elimination');
-      setEliminatedPlayer(eliminatedPlayer);
-      await onPlayerEliminated(eliminatedPlayer);
-    }
+    // Mr. White ALWAYS gets a guess opportunity when eliminated
+    console.log('🎯 Mr. White eliminated - showing guess screen!');
+    setEliminatedPlayer(eliminatedPlayer);
+    await onMrWhiteEliminated(eliminatedPlayer);
   }
 
   // ==========================================
