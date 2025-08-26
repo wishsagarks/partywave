@@ -1,23 +1,36 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
-import { Plus, Minus, Play, ArrowLeft, Users, X } from 'lucide-react-native';
+import { Plus, Minus, Play, ArrowLeft, Users, X, Settings, ToggleLeft, ToggleRight } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { GameService } from '@/services/gameService';
 import { useLeaderboard } from '@/hooks/useGameData';
+import { SpecialRole } from '@/types/game';
 
 export default function GameSetupScreen() {
   const { topPlayers, loading: leaderboardLoading } = useLeaderboard();
   const [playerCount, setPlayerCount] = useState(6);
   const [gameName, setGameName] = useState('');
   const [showPlayerNamesModal, setShowPlayerNamesModal] = useState(false);
+  const [showSpecialRolesModal, setShowSpecialRolesModal] = useState(false);
   const [playerNames, setPlayerNames] = useState<string[]>([]);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [useSpecialRoles, setUseSpecialRoles] = useState(false);
+  const [selectedSpecialRoles, setSelectedSpecialRoles] = useState<SpecialRole[]>([]);
   const [customRoles, setCustomRoles] = useState<{
     civilians: number;
     undercover: number;
     mrWhite: number;
   } | null>(null);
+
+  const availableSpecialRoles: SpecialRole[] = [
+    'goddess-of-justice',
+    'lovers', 
+    'mr-meme',
+    'revenger',
+    'ghost',
+    'joy-fool'
+  ];
 
   useEffect(() => {
     // Initialize player names array when player count changes
@@ -25,10 +38,29 @@ export default function GameSetupScreen() {
     setPlayerNames(newNames);
   }, [playerCount]);
 
+  const toggleSpecialRole = (role: SpecialRole) => {
+    setSelectedSpecialRoles(prev => {
+      if (prev.includes(role)) {
+        return prev.filter(r => r !== role);
+      } else {
+        // Limit special roles to reasonable number
+        if (prev.length >= Math.floor(playerCount / 2)) {
+          Alert.alert('Too Many Special Roles', 'You can only have up to half the players with special roles.');
+          return prev;
+        }
+        return [...prev, role];
+      }
+    });
+  };
+
   const updatePlayerCount = (count: number) => {
     const newCount = Math.max(3, Math.min(20, count));
     setPlayerCount(newCount);
     setCustomRoles(null); // Reset custom roles when player count changes
+    // Reset special roles if too many selected
+    if (selectedSpecialRoles.length > Math.floor(newCount / 2)) {
+      setSelectedSpecialRoles([]);
+    }
   };
 
   const updatePlayerName = (index: number, name: string) => {
@@ -106,6 +138,8 @@ export default function GameSetupScreen() {
           playerNames: JSON.stringify(playerNames),
           playerIds: JSON.stringify(playerIds),
           customRoles: customRoles ? JSON.stringify(customRoles) : '',
+          useSpecialRoles: useSpecialRoles.toString(),
+          selectedSpecialRoles: JSON.stringify(selectedSpecialRoles),
         },
       });
     } catch (error) {
@@ -242,6 +276,37 @@ export default function GameSetupScreen() {
           </View>
         </View>
       </ScrollView>
+        {/* Special Roles Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Special Roles</Text>
+            <TouchableOpacity
+              style={styles.toggleContainer}
+              onPress={() => setUseSpecialRoles(!useSpecialRoles)}
+            >
+              {useSpecialRoles ? (
+                <ToggleRight size={24} color="#8B5CF6" />
+              ) : (
+                <ToggleLeft size={24} color="#6B7280" />
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          {useSpecialRoles && (
+            <>
+              <Text style={styles.sectionDescription}>
+                Add chaos and strategy with special roles! {selectedSpecialRoles.length} selected.
+              </Text>
+              <TouchableOpacity
+                style={styles.configureButton}
+                onPress={() => setShowSpecialRolesModal(true)}
+              >
+                <Settings size={16} color="#8B5CF6" />
+                <Text style={styles.configureButtonText}>Configure Special Roles</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
 
       <TouchableOpacity 
         style={styles.startButton}
@@ -310,6 +375,66 @@ export default function GameSetupScreen() {
               </Text>
             </LinearGradient>
           </TouchableOpacity>
+        </LinearGradient>
+      </Modal>
+
+      {/* Special Roles Configuration Modal */}
+      <Modal
+        visible={showSpecialRolesModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <LinearGradient
+          colors={['#1F2937', '#111827']}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Special Roles</Text>
+            <TouchableOpacity onPress={() => setShowSpecialRolesModal(false)}>
+              <X size={24} color="#F3F4F6" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.modalSubtitle}>
+              Select special roles to add chaos and strategy to your game!
+            </Text>
+            <Text style={styles.modalWarning}>
+              Limit: {Math.floor(playerCount / 2)} special roles for {playerCount} players
+            </Text>
+            
+            {availableSpecialRoles.map((role) => (
+              <TouchableOpacity
+                key={role}
+                style={[
+                  styles.specialRoleCard,
+                  selectedSpecialRoles.includes(role) && styles.selectedSpecialRoleCard
+                ]}
+                onPress={() => toggleSpecialRole(role)}
+              >
+                <View style={styles.specialRoleHeader}>
+                  <Text style={styles.specialRoleEmoji}>
+                    {GameService.getSpecialRoleEmoji(role)}
+                  </Text>
+                  <Text style={styles.specialRoleName}>
+                    {role.split('-').map(word => 
+                      word.charAt(0).toUpperCase() + word.slice(1)
+                    ).join(' ')}
+                  </Text>
+                  <View style={styles.specialRoleToggle}>
+                    {selectedSpecialRoles.includes(role) ? (
+                      <ToggleRight size={20} color="#8B5CF6" />
+                    ) : (
+                      <ToggleLeft size={20} color="#6B7280" />
+                    )}
+                  </View>
+                </View>
+                <Text style={styles.specialRoleDescription}>
+                  {GameService.getSpecialRoleDescription(role)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </LinearGradient>
       </Modal>
     </LinearGradient>
@@ -498,6 +623,79 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#4B5563',
     fontSize: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionDescription: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  toggleContainer: {
+    padding: 4,
+  },
+  configureButton: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#8B5CF6',
+  },
+  configureButtonText: {
+    color: '#8B5CF6',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  specialRoleCard: {
+    backgroundColor: '#374151',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#4B5563',
+  },
+  selectedSpecialRoleCard: {
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+  },
+  specialRoleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  specialRoleEmoji: {
+    fontSize: 20,
+  },
+  specialRoleName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  specialRoleToggle: {
+    padding: 4,
+  },
+  specialRoleDescription: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    lineHeight: 20,
+  },
+  modalWarning: {
+    fontSize: 12,
+    color: '#F59E0B',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontStyle: 'italic',
   },
   adjustableRole: {
     paddingVertical: 12,

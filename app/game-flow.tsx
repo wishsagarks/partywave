@@ -2,12 +2,12 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, Tex
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward } from 'lucide-react-native';
+import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward, Zap } from 'lucide-react-native';
 import { GameService } from '@/services/gameService';
-import { Player, WordPair, GamePhase } from '@/types/game';
+import { Player, WordPair, GamePhase, SpecialRole } from '@/types/game';
 
 export default function GameFlow() {
-  const { gameId, playerCount, playerNames, playerIds, customRoles } = useLocalSearchParams();
+  const { gameId, playerCount, playerNames, playerIds, customRoles, useSpecialRoles, selectedSpecialRoles } = useLocalSearchParams();
   
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentPhase, setCurrentPhase] = useState<GamePhase>('word-distribution');
@@ -30,6 +30,10 @@ export default function GameFlow() {
   const [roundLeaderboard, setRoundLeaderboard] = useState<Player[]>([]);
   const [descriptionOrder, setDescriptionOrder] = useState<Player[]>([]);
   const [isProcessingVotes, setIsProcessingVotes] = useState(false);
+  const [showRevengerModal, setShowRevengerModal] = useState(false);
+  const [revengerPlayer, setRevengerPlayer] = useState<Player | null>(null);
+  const [showSpecialRoleCard, setShowSpecialRoleCard] = useState(false);
+  const [currentSpecialRolePlayer, setCurrentSpecialRolePlayer] = useState<Player | null>(null);
   
   useEffect(() => {
     let isMounted = true;
@@ -54,8 +58,10 @@ export default function GameFlow() {
         const names = JSON.parse(playerNames as string);
         const ids = JSON.parse(playerIds as string);
         const roles = customRoles ? JSON.parse(customRoles as string) : undefined;
+        const useSpecial = useSpecialRoles === 'true';
+        const specialRoles = selectedSpecialRoles ? JSON.parse(selectedSpecialRoles as string) : [];
         
-        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids, roles);
+        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids, roles, useSpecial, specialRoles);
         if (isMounted) {
           setPlayers(assignedPlayers);
         }
@@ -257,7 +263,8 @@ export default function GameFlow() {
   const castVote = (votedForId: string) => {
     if (isProcessingVotes) return;
     
-    const alivePlayers = players.filter(p => p.isAlive);
+    // Include Ghost players who can still vote
+    const votingPlayers = players.filter(p => p.canVote);
     const currentVoter = alivePlayers[currentVoterIndex];
     
     if (!currentVoter || individualVotes[currentVoter.id]) {
@@ -274,7 +281,7 @@ export default function GameFlow() {
     
     const totalVotesCast = Object.keys(newIndividualVotes).length;
     
-    if (totalVotesCast >= alivePlayers.length) {
+    if (totalVotesCast >= votingPlayers.length) {
       processVotingResults(newResults);
     } else {
       setCurrentVoterIndex(currentVoterIndex + 1);
@@ -286,86 +293,134 @@ export default function GameFlow() {
     
     setIsProcessingVotes(true);
     
-    const maxVotes = Math.max(...Object.values(results));
+    // Check for Goddess of Justice
+    const hasGoddessOfJustice = players.some(p => p.specialRole === 'goddess-of-justice' && p.isAlive);
     
-    if (maxVotes === 0) {
+    const { eliminatedPlayerId, tieResolved } = GameService.resolveVotingTie(players, results, hasGoddessOfJustice);
+    
+    if (!eliminatedPlayerId) {
       const alivePlayers = players.filter(p => p.isAlive);
       const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
       
-      Alert.alert('No Votes', 'No one received any votes. Randomly eliminating a player.', [
+      const message = tieResolved ? 
+        'There was a tie in voting. Please vote again to eliminate one player.' :
+        'No one received any votes. Randomly eliminating a player.';
+      
+      Alert.alert(tieResolved ? 'Tie Vote!' : 'No Votes', message, [
         { text: 'OK', onPress: async () => {
-          if (randomPlayer?.role === 'mrwhite') {
-            await handleMrWhiteElimination(randomPlayer);
+          if (tieResolved) {
+            resetVotingState();
+            setCurrentPhase('voting');
           } else if (randomPlayer) {
-            setEliminatedPlayer(randomPlayer);
-            await eliminatePlayer(randomPlayer.id);
+            if (randomPlayer.role === 'mrwhite') {
+              await handleMrWhiteElimination(randomPlayer);
+            } else {
+              setEliminatedPlayer(randomPlayer);
+              await eliminatePlayer(randomPlayer.id);
+            }
           }
         }}
       ]);
       return;
     }
     
-    const mostVotedIds = Object.entries(results)
-      .filter(([_, votes]) => votes === maxVotes)
-      .map(([id, _]) => id);
+    const eliminated = players.find(p => p.id === eliminatedPlayerId);
     
-    if (mostVotedIds.length === 1) {
-      const eliminatedId = mostVotedIds[0];
-      const eliminated = players.find(p => p.id === eliminatedId);
+    if (eliminated) {
+      setEliminatedPlayer(eliminated);
       
-      if (eliminated) {
-        setEliminatedPlayer(eliminated);
-        
-        if (eliminated.role === 'mrwhite') {
-          console.log('Processing Mr. White elimination');
-          await handleMrWhiteElimination(eliminated);
-        } else {
-          setCurrentPhase('elimination-result');
-          await eliminatePlayer(eliminatedId);
-        }
+      // Check for Joy Fool win condition
+      if (GameService.checkJoyFoolWin(players, eliminatedPlayerId, currentRound)) {
+        const finalPlayers = GameService.calculatePoints(players, 'Joy Fool');
+        setPlayers(finalPlayers);
+        setGameWinner('Joy Fool');
+        await saveGameResult('Joy Fool', finalPlayers);
+        setCurrentPhase('final-results');
+        return;
       }
-    } else {
-      // Handle tie - show names and restart voting
-      const tiedPlayers = mostVotedIds
-        .map(id => players.find(p => p.id === id))
-        .filter(Boolean)
-        .map(p => p!.name);
       
-      const tiedNames = tiedPlayers.join(', ');
+      // Check for Revenger role
+      if (eliminated.specialRole === 'revenger') {
+        setRevengerPlayer(eliminated);
+        setShowRevengerModal(true);
+        return;
+      }
       
-      Alert.alert(
-        'Tie Vote!', 
-        `There was a tie between: ${tiedNames}. Please vote again to eliminate one player.`,
-        [
-          { 
-            text: 'Vote Again', 
-            onPress: () => {
-              resetVotingState();
-              setCurrentPhase('voting');
-            }
-          }
-        ]
-      );
+      if (eliminated.role === 'mrwhite') {
+        console.log('Processing Mr. White elimination');
+        await handleMrWhiteElimination(eliminated);
+      } else {
+        setCurrentPhase('elimination-result');
+        await eliminatePlayer(eliminatedPlayerId);
+      }
     }
   };
 
-  const eliminatePlayer = async (playerId: string) => {
-    const newPlayers = players.map(p => 
-      p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
-    );
-    setPlayers(newPlayers);
+  const handleRevengerChoice = async (targetId: string) => {
+    if (!revengerPlayer) return;
     
-    await saveGameRound(playerId, votingResults);
+    // First eliminate the revenger
+    await eliminatePlayer(revengerPlayer.id);
     
-    const { winner, isGameOver } = GameService.checkWinCondition(newPlayers);
+    // Then eliminate their target
+    const updatedPlayers = GameService.handleRevengerElimination(players, revengerPlayer.id, targetId);
+    setPlayers(updatedPlayers);
+    
+    setShowRevengerModal(false);
+    setRevengerPlayer(null);
+    
+    // Check win condition after chain eliminations
+    const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
     if (isGameOver && winner) {
-      const finalPlayers = GameService.calculatePoints(newPlayers, winner);
+      const finalPlayers = GameService.calculatePoints(updatedPlayers, winner);
       setPlayers(finalPlayers);
       setGameWinner(winner);
       await saveGameResult(winner, finalPlayers);
       setCurrentPhase('final-results');
     } else {
-      showRoundResults(newPlayers);
+      showRoundResults(updatedPlayers);
+    }
+  };
+
+  const eliminatePlayer = async (playerId: string) => {
+    // Handle special role eliminations and chain reactions
+    const { updatedPlayers, chainEliminations } = GameService.handleSpecialRoleElimination(players, playerId);
+    
+    // Mark primary player as eliminated
+    const finalPlayers = updatedPlayers.map(p => 
+      p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
+    );
+    
+    setPlayers(finalPlayers);
+    
+    await saveGameRound(playerId, votingResults);
+    
+    // Show chain elimination message if any
+    if (chainEliminations.length > 0) {
+      const chainedNames = chainEliminations
+        .map(id => finalPlayers.find(p => p.id === id)?.name)
+        .filter(Boolean)
+        .join(', ');
+      
+      Alert.alert('Chain Elimination!', `${chainedNames} was also eliminated due to special role effects.`);
+    }
+    
+    const { winner, isGameOver } = GameService.checkWinCondition(finalPlayers);
+    if (isGameOver && winner) {
+      const scoredPlayers = GameService.calculatePoints(finalPlayers, winner);
+      setPlayers(scoredPlayers);
+      setGameWinner(winner);
+      await saveGameResult(winner, scoredPlayers);
+      setCurrentPhase('final-results');
+    } else {
+      showRoundResults(finalPlayers);
+    }
+  };
+
+  const showSpecialRoleCard = (player: Player) => {
+    if (player.specialRole) {
+      setCurrentSpecialRolePlayer(player);
+      setShowSpecialRoleCard(true);
     }
   };
 
@@ -450,7 +505,10 @@ export default function GameFlow() {
                 <>
                   <Text style={styles.wordText}>{currentPlayer.word}</Text>
                   <Text style={styles.wordHint}>
-                    Describe this word without saying it directly
+                    {currentPlayer.specialRole === 'mr-meme' 
+                      ? '🤡 You are Mr. Meme! You can only mime and gesture - no verbal clues!'
+                      : 'Describe this word without saying it directly'
+                    }
                   </Text>
                 </>
               ) : (
@@ -460,6 +518,16 @@ export default function GameFlow() {
                     Listen carefully and try to deduce the word!
                   </Text>
                 </>
+              )}
+              
+              {currentPlayer?.specialRole && (
+                <TouchableOpacity
+                  style={styles.specialRoleButton}
+                  onPress={() => showSpecialRoleCard(currentPlayer)}
+                >
+                  <Zap size={16} color="#F59E0B" />
+                  <Text style={styles.specialRoleButtonText}>Special Role Info</Text>
+                </TouchableOpacity>
               )}
               
               <TouchableOpacity
@@ -578,6 +646,7 @@ export default function GameFlow() {
   }
 
   if (currentPhase === 'voting') {
+    const votingPlayers = players.filter(p => p.canVote);
     const alivePlayers = players.filter(p => p.isAlive);
     const currentVoter = alivePlayers[currentVoterIndex];
     const hasVoted = currentVoter ? individualVotes[currentVoter.id] : false;
@@ -586,7 +655,7 @@ export default function GameFlow() {
       <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Voting Phase</Text>
-          <Text style={styles.subtitle}>Round {currentRound} • Voter {currentVoterIndex + 1}/{alivePlayers.length}</Text>
+          <Text style={styles.subtitle}>Round {currentRound} • Voter {currentVoterIndex + 1}/{votingPlayers.length}</Text>
         </View>
 
         <View style={styles.centerContent}>
@@ -629,7 +698,7 @@ export default function GameFlow() {
               ✓ Vote cast for {players.find(p => p.id === individualVotes[currentVoter.id])?.name}
             </Text>
             <Text style={styles.waitingText}>
-              Waiting for {alivePlayers.length - Object.keys(individualVotes).length} more players to vote...
+              Waiting for {votingPlayers.length - Object.keys(individualVotes).length} more players to vote...
             </Text>
           </View>
         )}
@@ -834,6 +903,77 @@ export default function GameFlow() {
   }
 
   return <View />;
+
+      {/* Revenger Choice Modal */}
+      <Modal
+        visible={showRevengerModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <LinearGradient
+          colors={['#1F2937', '#111827']}
+          style={styles.modalContainer}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>⚔️ Revenger's Choice</Text>
+          </View>
+
+          <View style={styles.centerContent}>
+            <Text style={styles.revengerInstructions}>
+              {revengerPlayer?.name}, you have been eliminated! 
+              As the Revenger, choose one player to eliminate with you:
+            </Text>
+            
+            <ScrollView style={styles.revengerTargets}>
+              {players
+                .filter(p => p.isAlive && p.id !== revengerPlayer?.id)
+                .map((player) => (
+                <TouchableOpacity
+                  key={player.id}
+                  style={styles.revengerTargetButton}
+                  onPress={() => handleRevengerChoice(player.id)}
+                >
+                  <Text style={styles.revengerTargetName}>{player.name}</Text>
+                  <Text style={styles.revengerTargetRole}>
+                    {getRoleEmoji(player.role)} {getRoleName(player.role)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </LinearGradient>
+      </Modal>
+
+      {/* Special Role Card Modal */}
+      <Modal
+        visible={showSpecialRoleCard}
+        animationType="fade"
+        transparent={true}
+      >
+        <View style={styles.specialRoleModalOverlay}>
+          <View style={styles.specialRoleModalContent}>
+            <Text style={styles.specialRoleModalTitle}>
+              {GameService.getSpecialRoleEmoji(currentSpecialRolePlayer?.specialRole!)} Special Role
+            </Text>
+            <Text style={styles.specialRoleModalName}>
+              {currentSpecialRolePlayer?.specialRole?.split('-').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+              ).join(' ')}
+            </Text>
+            <Text style={styles.specialRoleModalDescription}>
+              {currentSpecialRolePlayer?.specialRole && 
+                GameService.getSpecialRoleDescription(currentSpecialRolePlayer.specialRole)
+              }
+            </Text>
+            <TouchableOpacity
+              style={styles.specialRoleModalButton}
+              onPress={() => setShowSpecialRoleCard(false)}
+            >
+              <Text style={styles.specialRoleModalButtonText}>Got it!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 }
 
 const styles = StyleSheet.create({
@@ -1308,6 +1448,110 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  specialRoleButton: {
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    marginTop: 8,
+  },
+  specialRoleButtonText: {
+    color: '#F59E0B',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+  },
+  revengerInstructions: {
+    fontSize: 18,
+    color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  revengerTargets: {
+    flex: 1,
+    width: '100%',
+    paddingHorizontal: 20,
+  },
+  revengerTargetButton: {
+    backgroundColor: '#374151',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  revengerTargetName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+    marginBottom: 4,
+  },
+  revengerTargetRole: {
+    fontSize: 14,
+    color: '#9CA3AF',
+  },
+  specialRoleModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  specialRoleModalContent: {
+    backgroundColor: '#374151',
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: 16,
+    maxWidth: 320,
+  },
+  specialRoleModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+  },
+  specialRoleModalName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#F3F4F6',
+    textAlign: 'center',
+  },
+  specialRoleModalDescription: {
+    fontSize: 14,
+    color: '#D1D5DB',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  specialRoleModalButton: {
+    backgroundColor: '#8B5CF6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  specialRoleModalButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   sectionTitle: {
     fontSize: 18,
