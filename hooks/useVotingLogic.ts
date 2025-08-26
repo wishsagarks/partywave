@@ -152,6 +152,7 @@ export const useVotingLogic = (props: VotingLogicProps) => {
           // Show tie message and continue game
           console.log('Voting tie - no elimination this round');
         }
+      }
     } catch (error) {
       console.error('Error processing voting results:', error);
       setIsProcessingVotes(false);
