@@ -175,23 +175,17 @@ export default function GameFlow() {
       await saveGameResult('Mr. White', finalPlayers);
       setCurrentPhase('final-results');
     } else {
-      // Mr. White is eliminated, continue game
+      // Mr. White is eliminated and guessed wrong - Civilians win!
       const newPlayers = players.map(p => 
         p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
       );
-      setPlayers(newPlayers);
       
-      // Check win conditions
-      const { winner, isGameOver } = GameService.checkWinCondition(newPlayers);
-      if (isGameOver && winner) {
-        const finalPlayers = GameService.calculatePoints(newPlayers, winner);
-        setPlayers(finalPlayers);
-        setGameWinner(winner);
-        await saveGameResult(winner, finalPlayers);
-        setCurrentPhase('final-results');
-      } else {
-        setCurrentPhase('elimination-result');
-      }
+      // Mr. White eliminated and guessed wrong = Civilians win
+      const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
+      setPlayers(finalPlayers);
+      setGameWinner('Civilians');
+      await saveGameResult('Civilians', finalPlayers);
+      setCurrentPhase('final-results');
     }
     
     setShowMrWhiteGuess(false);
@@ -298,9 +292,6 @@ export default function GameFlow() {
       return;
     }
     
-    // Change phase immediately to prevent multiple processing
-    setCurrentPhase('elimination-result');
-    
     // Determine elimination
     const maxVotes = Math.max(...Object.values(results));
     
@@ -328,30 +319,35 @@ export default function GameFlow() {
       .map(([id, _]) => id);
     
     if (mostVotedIds.length === 1) {
+      // Change phase to prevent multiple processing
+      setCurrentPhase('elimination-result');
+      
       const eliminatedId = mostVotedIds[0];
       const eliminated = players.find(p => p.id === eliminatedId);
       if (eliminated) {
         if (eliminated.role === 'mrwhite') {
           handleMrWhiteElimination(eliminated);
         } else {
-          setEliminatedPlayer(eliminated);
-          await eliminatePlayer(eliminatedId);
-        }
-      }
-    } else {
-      // Tie - random elimination
-      Alert.alert('Tie Vote', 'There was a tie in voting. Randomly eliminating one of the tied players.', [
-        { text: 'OK', onPress: async () => {
-          const randomEliminated = mostVotedIds[Math.floor(Math.random() * mostVotedIds.length)];
-          const eliminated = players.find(p => p.id === randomEliminated);
-          if (eliminated?.role === 'mrwhite') {
-            handleMrWhiteElimination(eliminated);
-          } else if (eliminated) {
-            setEliminatedPlayer(eliminated);
-            await eliminatePlayer(randomEliminated);
+      // Tie - need to revote
+      const tiedPlayerNames = mostVotedIds
+        .map(id => players.find(p => p.id === id)?.name)
+        .filter(Boolean)
+        .join(', ');
+      
+      Alert.alert(
+        'Tie Vote!', 
+        `There was a tie between: ${tiedPlayerNames}. Please vote again to eliminate one player.`,
+        [
+          { 
+            text: 'Vote Again', 
+            onPress: () => {
+              // Reset voting state and start new voting round
+              resetVotingState();
+              setCurrentPhase('voting');
+            }
           }
-        }}
-      ]);
+        ]
+      );
     }
   };
 
