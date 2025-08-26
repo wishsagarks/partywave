@@ -95,7 +95,7 @@ export default function GameFlow() {
     try {
       console.log('Mr. White eliminated:', player.name);
       setEliminatedPlayer(player);
-      await saveGameRound(player.id, votingResults);
+      await GameService.saveGameRound(gameId as string, currentRound, player.id, votingResults);
       setShowMrWhiteGuess(true);
       setCurrentPhase('mr-white-guess');
     } catch (error) {
@@ -108,7 +108,7 @@ export default function GameFlow() {
     try {
       const { finalPlayers, chainEliminations } = specialRoles.handleSpecialRoleElimination(player.id, currentRound);
       
-      await saveGameRound(player.id, votingResults);
+      await GameService.saveGameRound(gameId as string, currentRound, player.id, votingResults);
       
       if (chainEliminations.length > 0) {
         const chainedNames = chainEliminations
@@ -243,7 +243,7 @@ export default function GameFlow() {
     try {
       const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
       
-      await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
+      await GameService.saveGameRound(gameId as string, currentRound, eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
       
       if (isCorrect) {
         const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
