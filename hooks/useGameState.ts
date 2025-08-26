@@ -162,7 +162,7 @@ export const useGameState = (params: GameStateParams) => {
       };
 
       await GameService.saveGameResult(
-        gameId: params.gameId,
+        params.gameId,
         result,
         wordPair,
         parsedPlayerIds
