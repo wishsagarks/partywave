@@ -496,7 +496,7 @@ export class GameService {
             role === 'undercover' ? wordPair.undercover_word : '',
       isAlive: true,
       points: 0,
-      };
+    };
     });
     
     // Final validation: count assigned roles
@@ -732,8 +732,13 @@ export class GameService {
         points = 6;
       } else if (winner === 'Undercover' && player.role === 'undercover') {
         points = 10;
-      } else if (winner === 'Impostors' && (player.role === 'undercover' || player.role === 'mrwhite')) {
-        points = player.role === 'undercover' ? 10 : 6;
+      } else if (winner === 'Impostors') {
+        // Both impostor types win together
+        if (player.role === 'undercover') {
+          points = 10;
+        } else if (player.role === 'mrwhite') {
+          points = 6;
+        }
       }
 
       return { ...player, points };
