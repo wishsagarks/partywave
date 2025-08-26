@@ -197,14 +197,16 @@ export class GameService {
   }
 
   // Game Initialization
-  static async initializeGame(
-    playerNames: string[],
-    playerIds: string[],
-    customRoles?: { civilians: number; undercover: number; mrWhite: number },
-    useSpecialRoles?: boolean,
-    selectedSpecialRoles?: SpecialRole[]
-  ): Promise<{ players: Player[]; wordPair: WordPair } | null> {
+  static async initializeGame(options: {
+    playerNames: string[];
+    playerIds: string[];
+    customRoles?: { civilians: number; undercover: number; mrWhite: number };
+    useSpecialRoles?: boolean;
+    selectedSpecialRoles?: SpecialRole[];
+  }): Promise<{ players: Player[]; wordPair: WordPair } | null> {
     try {
+      const { playerNames, playerIds, customRoles, useSpecialRoles, selectedSpecialRoles } = options;
+
       // Get random word pair
       const wordPair = await this.getRandomWordPair();
       if (!wordPair) {
