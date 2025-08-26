@@ -902,8 +902,10 @@ export default function GameFlow() {
     );
   }
 
-  return <View />;
-
+  return (
+    <>
+      <View />
+      
       {/* Revenger Choice Modal */}
       <Modal
         visible={showRevengerModal}
@@ -974,6 +976,8 @@ export default function GameFlow() {
           </View>
         </View>
       </Modal>
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
