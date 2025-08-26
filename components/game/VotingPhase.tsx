@@ -125,19 +125,19 @@ export const VotingPhase: React.FC<VotingPhaseProps> = ({
 
       <ScrollView style={styles.playersContainer}>
         <Text style={styles.sectionTitle}>Vote to Eliminate:</Text>
-        {alivePlayers.map((player) => {
+        {alivePlayers.filter(player => player.id !== currentVoter.id).map((player) => {
           const voteCount = votingResults[player.id] || 0;
-          const isCurrentVoter = player.id === currentVoter.id;
+          const maxVotes = Math.max(...Object.values(votingResults));
+          const hasMostVotes = voteCount > 0 && voteCount === maxVotes;
           
           return (
             <TouchableOpacity
               key={player.id}
               style={[
                 styles.playerCard,
-                isCurrentVoter && styles.currentVoterPlayerCard
+                hasMostVotes && styles.mostVotedPlayerCard
               ]}
-              onPress={() => !isCurrentVoter && onCastVote(player.id)}
-              disabled={isCurrentVoter}
+              onPress={() => onCastVote(player.id)}
             >
               <View style={styles.playerInfo}>
                 <Text style={styles.playerName}>{player.name}</Text>
@@ -152,11 +152,7 @@ export const VotingPhase: React.FC<VotingPhaseProps> = ({
                     <Text style={styles.voteCountText}>{voteCount}</Text>
                   </View>
                 )}
-                {isCurrentVoter ? (
-                  <Text style={styles.cannotVoteText}>Cannot vote for self</Text>
-                ) : (
-                  <Text style={styles.tapToVoteText}>Tap to vote</Text>
-                )}
+                <Text style={styles.tapToVoteText}>Tap to vote</Text>
               </View>
             </TouchableOpacity>
           );
@@ -276,6 +272,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#6B7280',
   },
+  mostVotedPlayerCard: {
+    backgroundColor: '#374151',
+    borderWidth: 2,
+    borderColor: '#EF4444',
+  },
   playerInfo: {
     flex: 1,
     gap: 4,
@@ -295,16 +296,21 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   voteCount: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#EF4444',
     borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    minWidth: 24,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 28,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   voteCountText: {
     color: 'white',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   tapToVoteText: {

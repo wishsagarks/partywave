@@ -55,10 +55,14 @@ export const useGameState = (params: GameStateParams) => {
   const [showSpecialRoleCard, setShowSpecialRoleCard] = useState(false);
   const [currentSpecialRolePlayer, setCurrentSpecialRolePlayer] = useState<Player | null>(null);
 
+  // Game timing
+  const [startTime, setStartTime] = useState<Date | null>(null);
+
   // Initialize game
   useEffect(() => {
     const initializeGame = async () => {
       try {
+        setStartTime(new Date());
         const gameData = await GameService.initializeGame({
           gameId: params.gameId,
           playerCount: params.playerCount,
@@ -139,17 +143,34 @@ export const useGameState = (params: GameStateParams) => {
 
   const saveGameResult = useCallback(async (winner: string, finalPlayers: Player[]) => {
     try {
-      await GameService.saveGameResult({
-        gameId: params.gameId,
+      const duration = startTime ? Math.floor((new Date().getTime() - startTime.getTime()) / 60000) : 0;
+      
+      const result = {
         winner,
-        players: finalPlayers,
         totalRounds: currentRound,
+        duration,
+        players: finalPlayers.map(player => ({
+          id: player.id,
+          name: player.name,
+          role: player.role,
+          word: player.word,
+          points: player.points || 0,
+          wasWinner: winner.toLowerCase().includes(player.role) || 
+                    (winner === 'Civilians' && player.role === 'civilian') ||
+                    (winner === 'Impostors' && (player.role === 'undercover' || player.role === 'mrwhite')),
+        })),
+      };
+
+      await GameService.saveGameResult(
+        gameId: params.gameId,
+        result,
         wordPair,
-      });
+        parsedPlayerIds
+      );
     } catch (error) {
       console.error('Failed to save game result:', error);
     }
-  }, [params.gameId, currentRound, wordPair]);
+  }, [params.gameId, currentRound, wordPair, startTime, parsedPlayerIds]);
 
   const showRoundResults = useCallback((updatedPlayers: Player[]) => {
     const leaderboard = [...updatedPlayers].sort((a, b) => (b.points || 0) - (a.points || 0));

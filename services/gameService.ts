@@ -302,9 +302,9 @@ export class GameService {
       if (gameError) throw gameError;
 
       // Save participant results
-      const participantData = result.players.map((player, index) => ({
+      const participantData = result.players.map((player) => ({
         game_id: gameId,
-        player_id: playerIds[index],
+        player_id: player.id,
         role: player.role,
         word_assigned: player.word,
         points_earned: player.points,
