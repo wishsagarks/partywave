@@ -92,6 +92,16 @@ export const useVotingLogic = (props: VotingLogicProps) => {
     try {
       // Find player(s) with most votes
       const maxVotes = Math.max(...Object.values(results));
+      const mostVotedPlayerIds = Object.keys(results).filter(playerId => results[playerId] === maxVotes);
+
+      if (mostVotedPlayerIds.length === 1) {
+        // Single player with most votes
+        const eliminatedPlayerId = mostVotedPlayerIds[0];
+        const eliminatedPlayer = players.find(p => p.id === eliminatedPlayerId);
+        
+        if (eliminatedPlayer) {
+          setEliminatedPlayer(eliminatedPlayer);
+          
           // Check if Mr. White should get to guess (only if no undercover left)
           if (eliminatedPlayer.role === 'mrwhite') {
             const remainingUndercover = players.filter(p => p.isAlive && p.role === 'undercover');
