@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward, Zap, Vote, Clock } from 'lucide-react-native';
 import { useGameFlowManager } from '@/hooks/useGameFlowManager';
+import { GameService } from '@/services/gameService';
 import { ModernCard } from '@/components/ui/modern-card';
 import { ModernButton } from '@/components/ui/modern-button';
 import { ModernInput } from '@/components/ui/modern-input';
@@ -132,12 +133,11 @@ export default function GameFlow() {
       
       if (isGameOver && winner) {
         const scoredPlayers = GameService.calculatePoints(players, winner);
-        gameActions.updateState({
-          players: scoredPlayers,
-          gameWinner: winner,
-          currentPhase: 'final-results',
+        gameActions.updateState({ 
+          players: scoredPlayers, 
+          gameWinner: winner 
         });
-        gameActions.endGame(winner);
+        gameActions.advancePhase('final-results');
       } else {
         // Continue to next round
         gameActions.updateState({
@@ -145,8 +145,8 @@ export default function GameFlow() {
           votingResults: {},
           individualVotes: {},
           currentVoterIndex: 0,
-          currentPhase: 'description',
         });
+        gameActions.advancePhase('description');
       }
     }
   };
@@ -526,6 +526,7 @@ export default function GameFlow() {
 
   // Mr. White guess phase
   if (currentPhase === 'mr-white-guess') {
+    return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Mr. White's Last Chance</Text>
@@ -569,6 +570,7 @@ export default function GameFlow() {
         </View>
       </LinearGradient>
     );
+  }
   }
 
   // Final results
@@ -675,7 +677,17 @@ export default function GameFlow() {
     );
   }
 
-  return <View />;
+  // Loading or unknown phase
+  return (
+    <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+      <View style={styles.centerContent}>
+        <ModernCard variant="glass" style={styles.processingCard}>
+          <Clock size={32} color="#f093fb" />
+          <Text style={styles.processingText}>Loading game...</Text>
+        </ModernCard>
+      </View>
+    </LinearGradient>
+  );
 }
 
 const styles = StyleSheet.create({
