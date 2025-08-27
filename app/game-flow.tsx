@@ -25,8 +25,7 @@ export default function GameFlow() {
     individualVotes,
     currentVoterIndex,
     isProcessingVotes,
-    mrWhiteGuess,
-    showMrWhiteGuess,
+    guessInput,
   } = gameState;
 
   // Initialize game on mount
@@ -101,13 +100,13 @@ export default function GameFlow() {
   };
 
   const handleMrWhiteGuess = async () => {
-    if (!mrWhiteGuess.trim()) {
+    if (!guessInput.trim()) {
       Alert.alert('Error', 'Please enter a guess');
       return;
     }
 
     try {
-      await gameActions.processMrWhiteGuess(mrWhiteGuess);
+      await gameActions.processMrWhiteGuess(guessInput);
     } catch (error) {
       Alert.alert('Error', 'Failed to process guess. Please try again.');
       console.error('Mr White guess error:', error);
@@ -120,6 +119,35 @@ export default function GameFlow() {
     } catch (error) {
       Alert.alert('Error', 'Failed to skip guess. Please try again.');
       console.error('Skip guess error:', error);
+    }
+  };
+
+  // Add function to continue after elimination result
+  const continueAfterElimination = () => {
+    if (eliminatedPlayer?.role === 'mrwhite') {
+      gameActions.advancePhase('mr-white-guess');
+    } else {
+      // Check win condition
+      const { winner, isGameOver } = GameService.checkWinCondition(players);
+      
+      if (isGameOver && winner) {
+        const scoredPlayers = GameService.calculatePoints(players, winner);
+        gameActions.updateState({
+          players: scoredPlayers,
+          gameWinner: winner,
+          currentPhase: 'final-results',
+        });
+        gameActions.endGame(winner);
+      } else {
+        // Continue to next round
+        gameActions.updateState({
+          currentRound: currentRound + 1,
+          votingResults: {},
+          individualVotes: {},
+          currentVoterIndex: 0,
+          currentPhase: 'description',
+        });
+      }
     }
   };
 
@@ -403,9 +431,101 @@ export default function GameFlow() {
     );
   }
 
-  // Mr. White guess phase
-  if (currentPhase === 'mr-white-guess' || showMrWhiteGuess) {
+  // Elimination result phase
+  if (currentPhase === 'elimination-result') {
+    if (!eliminatedPlayer) {
+      return (
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Processing...</Text>
+          </View>
+        </LinearGradient>
+      );
+    }
+
+    const alivePlayers = getAlivePlayers();
+    const votesReceived = votingResults[eliminatedPlayer.id] || 0;
+
     return (
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Player Eliminated</Text>
+          <Text style={styles.subtitle}>Round {currentRound}</Text>
+        </View>
+
+        <View style={styles.centerContent}>
+          <ModernCard variant="glass" style={styles.eliminationResultCard}>
+            <View style={styles.eliminatedPlayerHeader}>
+              <Text style={styles.eliminatedPlayerEmoji}>
+                {getRoleEmoji(eliminatedPlayer.role)}
+              </Text>
+              <Text style={styles.eliminatedPlayerName}>
+                {eliminatedPlayer.name}
+              </Text>
+              <ModernBadge 
+                variant={eliminatedPlayer.role === 'civilian' ? 'success' : 'destructive'} 
+                gradient 
+                size="lg"
+              >
+                {getRoleName(eliminatedPlayer.role)}
+              </ModernBadge>
+            </View>
+
+            {eliminatedPlayer.word && (
+              <View style={styles.eliminatedPlayerWord}>
+                <Text style={styles.eliminatedWordLabel}>Their word was:</Text>
+                <Text style={styles.eliminatedWordText}>"{eliminatedPlayer.word}"</Text>
+              </View>
+            )}
+
+            {eliminatedPlayer.specialRole && (
+              <ModernBadge variant="warning" gradient>
+                ⚡ {eliminatedPlayer.specialRole.replace('-', ' ').toUpperCase()}
+              </ModernBadge>
+            )}
+
+            <View style={styles.eliminationStats}>
+              <Text style={styles.eliminationStatsText}>
+                Received {votesReceived} vote{votesReceived !== 1 ? 's' : ''}
+              </Text>
+              <Text style={styles.eliminationStatsText}>
+                {alivePlayers.length} players remaining
+              </Text>
+            </View>
+
+            {eliminatedPlayer.role === 'mrwhite' ? (
+              <View style={styles.mrWhiteEliminationInfo}>
+                <Text style={styles.mrWhiteEliminationText}>
+                  🎯 Mr. White's Final Chance!
+                </Text>
+                <Text style={styles.mrWhiteEliminationSubtext}>
+                  They get one guess to win the game
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.normalEliminationInfo}>
+                <Text style={styles.normalEliminationText}>
+                  The game continues to the next round
+                </Text>
+              </View>
+            )}
+
+            <ModernButton
+              variant="primary"
+              size="lg"
+              onPress={continueAfterElimination}
+              icon={<ArrowRight size={16} color="white" />}
+            >
+              {eliminatedPlayer.role === 'mrwhite' ? "Mr. White's Guess" : 'Continue to Next Round'}
+            </ModernButton>
+          </ModernCard>
+        </View>
+      </LinearGradient>
+    );
+  }
+
+  // Mr. White guess phase
+  if (currentPhase === 'mr-white-guess') {
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Mr. White's Last Chance</Text>
@@ -420,8 +540,8 @@ export default function GameFlow() {
             
             <ModernInput
               label="What is the Civilian word?"
-              value={mrWhiteGuess}
-              onChangeText={(text) => gameState.mrWhiteGuess = text}
+              value={guessInput}
+              onChangeText={(text) => gameActions.updateState({ guessInput: text })}
               placeholder="Enter your guess..."
               variant="glass"
             />
@@ -431,7 +551,7 @@ export default function GameFlow() {
                 variant="success"
                 size="lg"
                 onPress={handleMrWhiteGuess}
-                disabled={!mrWhiteGuess.trim()}
+                disabled={!guessInput.trim()}
               >
                 Submit Guess
               </ModernButton>
