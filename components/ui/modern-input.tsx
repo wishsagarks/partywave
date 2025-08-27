@@ -5,14 +5,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 interface ModernInputProps extends TextInputProps {
   label?: string;
   error?: string;
-  containerStyle?: ViewStyle;
   variant?: 'default' | 'glass' | 'minimal';
 }
 
 export const ModernInput: React.FC<ModernInputProps> = ({
   label,
   error,
-  containerStyle,
   variant = 'default',
   style,
   onFocus,
@@ -69,7 +67,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
   };
 
   return (
-    <View style={[styles.container, containerStyle]}>
+    <View style={styles.container}>
       {label && (
         <Text style={[
           styles.label,

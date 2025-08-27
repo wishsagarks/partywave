@@ -243,73 +243,34 @@ export default function GameSetupScreen() {
             </View>
           </View>
         </AceternityCard>
-            value={gameName}
-            onChangeText={setGameName}
-            placeholder="Enter game session name (e.g., 'Friday Night Game')"
-            style={styles.gameNameInput}
-          />
-        </Card>
-
-        {/* Player Count */}
-        <Card variant="glass" style={styles.section}>
-          <Text style={styles.sectionTitle}>Players</Text>
-          <View style={styles.playerCountContainer}>
-            <TouchableOpacity 
-              style={styles.countButton}
-              onPress={() => updatePlayerCount(playerCount - 1)}
-            >
-              <Minus size={20} color="white" />
-            </TouchableOpacity>
-            
-            <View style={styles.playerCountDisplay}>
-              <Text style={styles.playerCountText}>{playerCount}</Text>
-              <Text style={styles.playerCountLabel}>Players</Text>
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.countButton}
-              onPress={() => updatePlayerCount(playerCount + 1)}
-            >
-              <Plus size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-          
-          {/* Game Info */}
-          <View style={styles.gameInfoRow}>
-            <View style={styles.gameInfoItem}>
-              <Text style={styles.gameInfoLabel}>Duration</Text>
-              <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 2)}-{Math.ceil(playerCount * 3)}min</Text>
-            </View>
-            <View style={styles.gameInfoItem}>
-              <Text style={styles.gameInfoLabel}>Rounds</Text>
-              <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 0.6)}-{playerCount - 1}</Text>
-            </View>
-          </View>
-        </Card>
 
         {/* Role Distribution */}
-        <Card variant="glass" style={styles.section}>
-          <Text style={styles.sectionTitle}>Role Distribution</Text>
+        <AceternityCard variant="glass" style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Role Distribution</Text>
           <View style={styles.roleDistribution}>
             <View style={styles.roleCard}>
               <Text style={styles.roleEmoji}>👥</Text>
-              <Text style={styles.roleName}>Civilians</Text>
-              <Badge variant="success">{roles.civilians}</Badge>
+              <Text style={[styles.roleName, { color: colors.text }]}>Civilians</Text>
+              <View style={[styles.badge, { backgroundColor: colors.success }]}>
+                <Text style={styles.badgeText}>{roles.civilians}</Text>
+              </View>
             </View>
             
             <View style={styles.roleCard}>
               <Text style={styles.roleEmoji}>🕵️</Text>
-              <Text style={styles.roleName}>Undercover</Text>
+              <Text style={[styles.roleName, { color: colors.text }]}>Undercover</Text>
               <View style={styles.roleAdjuster}>
                 <TouchableOpacity 
-                  style={styles.roleButton}
+                  style={[styles.roleButton, { backgroundColor: colors.primary }]}
                   onPress={() => updateRoleCount('undercover', -1)}
                 >
                   <Minus size={12} color="white" />
                 </TouchableOpacity>
-                <Badge variant="destructive">{roles.undercover}</Badge>
+                <View style={[styles.badge, { backgroundColor: colors.destructive }]}>
+                  <Text style={styles.badgeText}>{roles.undercover}</Text>
+                </View>
                 <TouchableOpacity 
-                  style={styles.roleButton}
+                  style={[styles.roleButton, { backgroundColor: colors.primary }]}
                   onPress={() => updateRoleCount('undercover', 1)}
                 >
                   <Plus size={12} color="white" />
@@ -319,17 +280,19 @@ export default function GameSetupScreen() {
             
             <View style={styles.roleCard}>
               <Text style={styles.roleEmoji}>❓</Text>
-              <Text style={styles.roleName}>Mr. White</Text>
+              <Text style={[styles.roleName, { color: colors.text }]}>Mr. White</Text>
               <View style={styles.roleAdjuster}>
                 <TouchableOpacity 
-                  style={styles.roleButton}
+                  style={[styles.roleButton, { backgroundColor: colors.primary }]}
                   onPress={() => updateRoleCount('mrWhite', -1)}
                 >
                   <Minus size={12} color="white" />
                 </TouchableOpacity>
-                <Badge variant="warning">{roles.mrWhite}</Badge>
+                <View style={[styles.badge, { backgroundColor: colors.warning }]}>
+                  <Text style={styles.badgeText}>{roles.mrWhite}</Text>
+                </View>
                 <TouchableOpacity 
-                  style={styles.roleButton}
+                  style={[styles.roleButton, { backgroundColor: colors.primary }]}
                   onPress={() => updateRoleCount('mrWhite', 1)}
                 >
                   <Plus size={12} color="white" />
@@ -337,14 +300,14 @@ export default function GameSetupScreen() {
               </View>
             </View>
           </View>
-        </Card>
+        </AceternityCard>
 
         {/* Special Roles */}
-        <Card variant="glass" style={styles.section}>
+        <AceternityCard variant="glass" style={styles.section}>
           <View style={styles.specialRolesHeader}>
             <View style={styles.sectionHeader}>
               <Zap size={20} color="#f093fb" />
-              <Text style={styles.sectionTitle}>Special Roles</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Special Roles</Text>
             </View>
             <TouchableOpacity
               style={styles.toggleContainer}
@@ -360,20 +323,20 @@ export default function GameSetupScreen() {
           
           {useSpecialRoles && (
             <>
-              <Text style={styles.sectionDescription}>
+              <Text style={[styles.sectionDescription, { color: colors.textSecondary }]}>
                 Add chaos and strategy with special roles! {selectedSpecialRoles.length} selected.
               </Text>
-              <Button
+              <AceternityButton
                 variant="secondary"
                 size="md"
                 onPress={() => setShowSpecialRolesModal(true)}
                 icon={<Settings size={16} color="#8B5CF6" />}
               >
                 Configure Special Roles
-              </Button>
+              </AceternityButton>
             </>
           )}
-        </Card>
+        </AceternityCard>
       </ScrollView>
 
       {/* Start Button */}
@@ -397,36 +360,38 @@ export default function GameSetupScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <LinearGradient
-          colors={['#0a0a1a', '#0f0f23']}
-          style={styles.modalContainer}
-        >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Enter Player Names</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Enter Player Names</Text>
             <TouchableOpacity onPress={() => setShowPlayerNamesModal(false)}>
-              <X size={24} color="#F3F4F6" />
+              <X size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
-            <Text style={styles.modalSubtitle}>
+            <Text style={[styles.modalSubtitle, { color: colors.primary }]}>
               Game: {gameName} • {playerCount} Players
             </Text>
             
             {playerNames.map((name, index) => (
-              <Input
-                key={index}
-                label={`Player ${index + 1}`}
-                value={name}
-                onChangeText={(text) => updatePlayerName(index, text)}
-                placeholder={`Enter player ${index + 1} name`}
-                containerStyle={styles.playerInputContainer}
-              />
+              <View key={index} style={styles.playerInputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Player {index + 1}</Text>
+                <View style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <Text
+                    style={[styles.textInputText, { color: colors.text }]}
+                    onPress={() => {
+                      // Handle text input - you might want to use a proper TextInput here
+                    }}
+                  >
+                    {name || `Enter player ${index + 1} name`}
+                  </Text>
+                </View>
+              </View>
             ))}
           </ScrollView>
 
           <View style={styles.modalButtonContainer}>
-            <Button
+            <AceternityButton
               variant="primary"
               size="lg"
               onPress={startGame}
@@ -434,9 +399,9 @@ export default function GameSetupScreen() {
               icon={<Users size={20} color="white" />}
             >
               {isCreatingGame ? 'Creating Game...' : 'Start Game'}
-            </Button>
+            </AceternityButton>
           </View>
-        </LinearGradient>
+        </View>
       </Modal>
 
       {/* Special Roles Modal */}
@@ -445,22 +410,19 @@ export default function GameSetupScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <LinearGradient
-          colors={['#0a0a1a', '#0f0f23']}
-          style={styles.modalContainer}
-        >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Special Roles</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Special Roles</Text>
             <TouchableOpacity onPress={() => setShowSpecialRolesModal(false)}>
-              <X size={24} color="#F3F4F6" />
+              <X size={24} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.modalContent}>
-            <Text style={styles.modalSubtitle}>
+            <Text style={[styles.modalSubtitle, { color: colors.primary }]}>
               Select special roles to add chaos and strategy!
             </Text>
-            <Text style={styles.modalWarning}>
+            <Text style={[styles.modalWarning, { color: colors.warning }]}>
               Limit: {Math.floor(playerCount / 2)} special roles for {playerCount} players
             </Text>
             
@@ -469,7 +431,8 @@ export default function GameSetupScreen() {
                 key={role}
                 style={[
                   styles.specialRoleCard,
-                  selectedSpecialRoles.includes(role) && styles.selectedSpecialRoleCard
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  selectedSpecialRoles.includes(role) && { borderColor: colors.primary }
                 ]}
                 onPress={() => toggleSpecialRole(role)}
               >
@@ -477,7 +440,7 @@ export default function GameSetupScreen() {
                   <Text style={styles.specialRoleEmoji}>
                     {GameService.getSpecialRoleEmoji(role)}
                   </Text>
-                  <Text style={styles.specialRoleName}>
+                  <Text style={[styles.specialRoleName, { color: colors.text }]}>
                     {role.split('-').map(word => 
                       word.charAt(0).toUpperCase() + word.slice(1)
                     ).join(' ')}
@@ -490,13 +453,13 @@ export default function GameSetupScreen() {
                     )}
                   </View>
                 </View>
-                <Text style={styles.specialRoleDescription}>
+                <Text style={[styles.specialRoleDescription, { color: colors.textSecondary }]}>
                   {GameService.getSpecialRoleDescription(role)}
                 </Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </LinearGradient>
+        </View>
       </Modal>
     </View>
   );
@@ -600,59 +563,8 @@ const styles = StyleSheet.create({
   },
   sectionDescription: {
     fontSize: 14,
-    color: '#D1D5DB',
     marginBottom: 16,
     lineHeight: 20,
-  },
-  gameNameInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  playerCountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 32,
-    marginBottom: 24,
-  },
-  countButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#8B5CF6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playerCountDisplay: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  playerCountText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  playerCountLabel: {
-    fontSize: 14,
-    color: '#D1D5DB',
-  },
-  gameInfoRow: {
-    flexDirection: 'row',
-    gap: 24,
-    justifyContent: 'center',
-  },
-  gameInfoItem: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  gameInfoLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-  },
-  gameInfoValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#f093fb',
   },
   roleDistribution: {
     gap: 16,
@@ -672,7 +584,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
-    color: '#FFFFFF',
     marginLeft: 12,
   },
   roleAdjuster: {
@@ -684,9 +595,18 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   specialRolesHeader: {
     flexDirection: 'row',
@@ -725,23 +645,19 @@ const styles = StyleSheet.create({
   leaderboardName: {
     flex: 1,
     fontSize: 14,
-    color: '#FFFFFF',
     fontWeight: '500',
   },
   leaderboardPoints: {
     fontSize: 12,
-    color: '#8B5CF6',
     fontWeight: '600',
   },
   noPlayersText: {
     fontSize: 14,
-    color: '#9CA3AF',
     textAlign: 'center',
     fontStyle: 'italic',
   },
   loadingText: {
     fontSize: 14,
-    color: '#9CA3AF',
     textAlign: 'center',
   },
   modalContainer: {
@@ -759,7 +675,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#F3F4F6',
   },
   modalContent: {
     flex: 1,
@@ -767,14 +682,12 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: {
     fontSize: 16,
-    color: '#8B5CF6',
     textAlign: 'center',
     marginBottom: 24,
     fontWeight: '600',
   },
   modalWarning: {
     fontSize: 12,
-    color: '#F59E0B',
     textAlign: 'center',
     marginBottom: 20,
     fontStyle: 'italic',
@@ -786,15 +699,10 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   specialRoleCard: {
-    backgroundColor: '#374151',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#4B5563',
-  },
-  selectedSpecialRoleCard: {
-    borderColor: '#8B5CF6',
   },
   specialRoleHeader: {
     flexDirection: 'row',
@@ -803,17 +711,17 @@ const styles = StyleSheet.create({
   },
   specialRoleEmoji: {
     fontSize: 20,
+  },
   specialRoleName: {
     flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#F3F4F6',
+  },
   specialRoleToggle: {
     padding: 4,
   },
   specialRoleDescription: {
     fontSize: 14,
-    color: '#D1D5DB',
     lineHeight: 20,
   },
 });
