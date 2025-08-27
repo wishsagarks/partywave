@@ -26,6 +26,31 @@ export const ModernCard: React.FC<ModernCardProps> = ({
     elevation: 8,
   };
 
+  const getVariantStyles = () => {
+    switch (variant) {
+      case 'glass':
+        return {
+          gradient: ['rgba(139, 69, 255, 0.15)', 'rgba(255, 107, 107, 0.1)'],
+          border: 'rgba(255, 154, 158, 0.3)',
+        };
+      case 'gradient':
+        return {
+          gradient: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+          border: 'transparent',
+        };
+      case 'elevated':
+        return {
+          gradient: ['#2D1B69', '#11998e'],
+          border: '#38ef7d',
+        };
+      default:
+        return {
+          gradient: ['#667eea', '#764ba2'],
+          border: 'transparent',
+        };
+    }
+  };
+
   if (variant === 'glass') {
     return (
       <View style={[baseStyle, style]}>

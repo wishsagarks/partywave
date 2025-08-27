@@ -43,9 +43,9 @@ export const ModernInput: React.FC<ModernInputProps> = ({
     if (variant === 'glass') {
       return {
         ...baseStyle,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        backgroundColor: 'rgba(139, 69, 255, 0.1)',
         borderWidth: 1,
-        borderColor: isFocused ? '#667eea' : 'rgba(255, 255, 255, 0.2)',
+        borderColor: isFocused ? '#f093fb' : 'rgba(255, 154, 158, 0.3)',
       };
     }
 
@@ -54,7 +54,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
         ...baseStyle,
         backgroundColor: 'transparent',
         borderBottomWidth: 2,
-        borderBottomColor: isFocused ? '#667eea' : '#4a5568',
+        borderBottomColor: isFocused ? '#f093fb' : '#11998e',
         borderRadius: 0,
         paddingHorizontal: 0,
       };
@@ -62,9 +62,9 @@ export const ModernInput: React.FC<ModernInputProps> = ({
 
     return {
       ...baseStyle,
-      backgroundColor: '#1a1a2e',
+      backgroundColor: 'rgba(45, 27, 105, 0.8)',
       borderWidth: 2,
-      borderColor: error ? '#e53e3e' : (isFocused ? '#667eea' : '#2d3748'),
+      borderColor: error ? '#ff6b6b' : (isFocused ? '#f093fb' : '#11998e'),
     };
   };
 
@@ -73,7 +73,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
       {label && (
         <Text style={[
           styles.label,
-          { color: isFocused ? '#667eea' : '#A0AEC0' }
+          { color: isFocused ? '#f093fb' : '#d299c2' }
         ]}>
           {label}
         </Text>
@@ -86,7 +86,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
           ]}
           placeholderTextColor="#718096"
           onFocus={handleFocus}
-          onBlur={handleBlur}
+          colors={['#f093fb', '#f5576c']}
           {...props}
         />
         {isFocused && variant !== 'minimal' && (

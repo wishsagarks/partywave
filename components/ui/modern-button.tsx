@@ -30,40 +30,40 @@ export const ModernButton: React.FC<ModernButtonProps> = ({
     switch (variant) {
       case 'primary':
         return {
-          colors: ['#667eea', '#764ba2'],
+          colors: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
           textColor: '#FFFFFF',
-          shadowColor: '#667eea',
+          shadowColor: '#f093fb',
         };
       case 'secondary':
         return {
-          colors: ['#2d3748', '#4a5568'],
-          textColor: '#E2E8F0',
-          shadowColor: '#2d3748',
+          colors: ['#11998e', '#38ef7d'],
+          textColor: '#FFFFFF',
+          shadowColor: '#11998e',
         };
       case 'ghost':
         return {
           colors: ['transparent', 'transparent'],
-          textColor: '#667eea',
+          textColor: '#f093fb',
           border: true,
-          borderColor: '#667eea',
+          borderColor: '#f093fb',
         };
       case 'destructive':
         return {
-          colors: ['#e53e3e', '#c53030'],
+          colors: ['#ff6b6b', '#ee5a52'],
           textColor: '#FFFFFF',
-          shadowColor: '#e53e3e',
+          shadowColor: '#ff6b6b',
         };
       case 'success':
         return {
-          colors: ['#38a169', '#2f855a'],
+          colors: ['#4ecdc4', '#44a08d'],
           textColor: '#FFFFFF',
-          shadowColor: '#38a169',
+          shadowColor: '#4ecdc4',
         };
       default:
         return {
-          colors: ['#4a5568', '#2d3748'],
+          colors: ['#a8edea', '#fed6e3'],
           textColor: '#FFFFFF',
-          shadowColor: '#4a5568',
+          shadowColor: '#a8edea',
         };
     }
   };

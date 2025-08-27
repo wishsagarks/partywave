@@ -12,7 +12,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0f0f23', '#1a1a2e', '#16213e', '#0f3460']}
+        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
         style={styles.backgroundGradient}
       />
       
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 6,
     height: 6,
-    backgroundColor: 'rgba(102, 126, 234, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
     borderRadius: 3,
   },
   scrollContainer: {
