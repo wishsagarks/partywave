@@ -257,7 +257,6 @@ export default function GameFlow() {
       if (isCorrect) {
         // Mr. White wins with correct guess
         const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
-        setPlayers(finalPlayers);
         await handleGameEnd('Mr. White', finalPlayers);
       } else {
         // Mr. White guessed wrong - eliminate them and check win conditions
@@ -282,6 +281,8 @@ export default function GameFlow() {
       setMrWhiteGuess('');
     } catch (error) {
       console.error('Error submitting Mr. White guess:', error);
+      setShowMrWhiteGuess(false);
+      setMrWhiteGuess('');
     }
   };
 
@@ -289,6 +290,8 @@ export default function GameFlow() {
     if (!eliminatedPlayer) return;
     
     try {
+      await saveGameRound(eliminatedPlayer.id, votingResults);
+      
       // Mr. White skipped guess - eliminate them and check win conditions
       const playersAfterElimination = players.map(p => 
         p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
@@ -310,6 +313,8 @@ export default function GameFlow() {
       setMrWhiteGuess('');
     } catch (error) {
       console.error('Error skipping Mr. White guess:', error);
+      setShowMrWhiteGuess(false);
+      setMrWhiteGuess('');
     }
   };
 
