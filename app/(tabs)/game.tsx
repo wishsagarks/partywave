@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { useState, useEffect } from 'react';
 import { Plus, Minus, Play, ArrowLeft, Users, X, Settings, ToggleLeft, ToggleRight } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -8,6 +9,7 @@ import { useLeaderboard } from '@/hooks/useGameData';
 import { SpecialRole } from '@/types/game';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { GlassButton } from '@/components/ui/GlassButton';
+import { GlassModal } from '@/components/ui/GlassModal';
 
 export default function GameSetupScreen() {
   const { topPlayers, loading: leaderboardLoading } = useLeaderboard();
@@ -155,166 +157,176 @@ export default function GameSetupScreen() {
   const roles = customRoles || GameService.getRoleDistribution(playerCount);
 
   return (
-    <LinearGradient
-      colors={['#1F2937', '#111827']}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#F3F4F6" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Game Setup</Text>
-        <View style={{ width: 24 }} />
-      </View>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#0F0C29', '#24243e', '#302B63']}
+        style={styles.backgroundGradient}
+      />
+      <BlurView intensity={5} tint="dark" style={styles.backgroundBlur}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <BlurView intensity={15} tint="dark" style={styles.backButtonBlur}>
+              <ArrowLeft size={24} color="#F3F4F6" />
+            </BlurView>
+          </TouchableOpacity>
+          <GlassCard style={styles.titleCard} intensity={15}>
+            <Text style={styles.title}>Game Setup</Text>
+          </GlassCard>
+          <View style={{ width: 48 }} />
+        </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Quick Leaderboard Preview */}
-        <GlassCard style={styles.section}>
-          <Text style={styles.sectionTitle}>🏆 Top Players</Text>
-          {leaderboardLoading ? (
-            <Text style={styles.loadingText}>Loading...</Text>
-          ) : (
-            <View style={styles.leaderboardPreview}>
-              {topPlayers.slice(0, 3).map((player, index) => (
-                <View key={player.id} style={styles.leaderboardItem}>
-                  <Text style={styles.leaderboardRank}>#{index + 1}</Text>
-                  <Text style={styles.leaderboardName}>{player.name}</Text>
-                  <Text style={styles.leaderboardPoints}>{player.total_points}pts</Text>
-                </View>
-              ))}
-              {topPlayers.length === 0 && (
-                <Text style={styles.noPlayersText}>No games played yet</Text>
-              )}
-            </View>
-          )}
-        </GlassCard>
-
-        <GlassCard style={styles.section}>
-          <Text style={styles.sectionTitle}>Game Name</Text>
-          <TextInput
-            style={styles.gameNameInput}
-            value={gameName}
-            onChangeText={setGameName}
-            placeholder="Enter game session name (e.g., 'Friday Night Game')"
-            placeholderTextColor="#9CA3AF"
-          />
-        </GlassCard>
-
-        <GlassCard style={styles.section}>
-          <Text style={styles.sectionTitle}>Player Count</Text>
-          <View style={styles.playerCountContainer}>
-            <TouchableOpacity 
-              style={styles.countButton}
-              onPress={() => updatePlayerCount(playerCount - 1)}
-            >
-              <Minus size={20} color="white" />
-            </TouchableOpacity>
-            
-            <Text style={styles.playerCountText}>{playerCount}</Text>
-            
-            <TouchableOpacity 
-              style={styles.countButton}
-              onPress={() => updatePlayerCount(playerCount + 1)}
-            >
-              <Plus size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.gameInfoRow}>
-            <View style={styles.gameInfoItem}>
-              <Text style={styles.gameInfoLabel}>Expected Rounds</Text>
-              <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 0.6)}-{playerCount - 1}</Text>
-            </View>
-            <View style={styles.gameInfoItem}>
-              <Text style={styles.gameInfoLabel}>Game Duration</Text>
-              <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 2)}-{Math.ceil(playerCount * 3)}min</Text>
-            </View>
-          </View>
-          
-          <View style={styles.roleDistribution}>
-            <View style={styles.roleCard}>
-              <Text style={styles.roleEmoji}>👥</Text>
-              <Text style={styles.roleName}>Civilians</Text>
-              <Text style={styles.roleCount}>{roles.civilians}</Text>
-            </View>
-            <View style={[styles.roleCard, styles.adjustableRole]}>
-              <Text style={styles.roleEmoji}>🕵️</Text>
-              <Text style={styles.roleName}>Undercover</Text>
-              <View style={styles.roleAdjuster}>
-                <TouchableOpacity 
-                  style={styles.roleButton}
-                  onPress={() => updateRoleCount('undercover', -1)}
-                >
-                  <Minus size={12} color="white" />
-                </TouchableOpacity>
-                <Text style={styles.roleCount}>{roles.undercover}</Text>
-                <TouchableOpacity 
-                  style={styles.roleButton}
-                  onPress={() => updateRoleCount('undercover', 1)}
-                >
-                  <Plus size={12} color="white" />
-                </TouchableOpacity>
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          {/* Quick Leaderboard Preview */}
+          <GlassCard style={styles.section} intensity={12}>
+            <Text style={styles.sectionTitle}>🏆 Top Players</Text>
+            {leaderboardLoading ? (
+              <Text style={styles.loadingText}>Loading...</Text>
+            ) : (
+              <View style={styles.leaderboardPreview}>
+                {topPlayers.slice(0, 3).map((player, index) => (
+                  <View key={player.id} style={styles.leaderboardItem}>
+                    <Text style={styles.leaderboardRank}>#{index + 1}</Text>
+                    <Text style={styles.leaderboardName}>{player.name}</Text>
+                    <Text style={styles.leaderboardPoints}>{player.total_points}pts</Text>
+                  </View>
+                ))}
+                {topPlayers.length === 0 && (
+                  <Text style={styles.noPlayersText}>No games played yet</Text>
+                )}
               </View>
-            </View>
-            <View style={[styles.roleCard, styles.adjustableRole]}>
-              <Text style={styles.roleEmoji}>❓</Text>
-              <Text style={styles.roleName}>Mr. White</Text>
-              <View style={styles.roleAdjuster}>
-                <TouchableOpacity 
-                  style={styles.roleButton}
-                  onPress={() => updateRoleCount('mrWhite', -1)}
-                >
-                  <Minus size={12} color="white" />
-                </TouchableOpacity>
-                <Text style={styles.roleCount}>{roles.mrWhite}</Text>
-                <TouchableOpacity 
-                  style={styles.roleButton}
-                  onPress={() => updateRoleCount('mrWhite', 1)}
-                >
-                  <Plus size={12} color="white" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </GlassCard>
-      </ScrollView>
-        {/* Special Roles Section */}
-        <GlassCard style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Special Roles</Text>
-            <TouchableOpacity
-              style={styles.toggleContainer}
-              onPress={() => setUseSpecialRoles(!useSpecialRoles)}
-            >
-              {useSpecialRoles ? (
-                <ToggleRight size={24} color="#8B5CF6" />
-              ) : (
-                <ToggleLeft size={24} color="#6B7280" />
-              )}
-            </TouchableOpacity>
-          </View>
-          
-          {useSpecialRoles && (
-            <>
-              <Text style={styles.sectionDescription}>
-                Add chaos and strategy with special roles! {selectedSpecialRoles.length} selected.
-              </Text>
-              <TouchableOpacity
-                style={styles.configureButton}
-                onPress={() => setShowSpecialRolesModal(true)}
+            )}
+          </GlassCard>
+
+          <GlassCard style={styles.section} intensity={12}>
+            <Text style={styles.sectionTitle}>Game Name</Text>
+            <BlurView intensity={10} tint="dark" style={styles.inputContainer}>
+              <TextInput
+                style={styles.gameNameInput}
+                value={gameName}
+                onChangeText={setGameName}
+                placeholder="Enter game session name (e.g., 'Friday Night Game')"
+                placeholderTextColor="#9CA3AF"
+              />
+            </BlurView>
+          </GlassCard>
+
+          <GlassCard style={styles.section} intensity={12}>
+            <Text style={styles.sectionTitle}>Player Count</Text>
+            <View style={styles.playerCountContainer}>
+              <TouchableOpacity 
+                style={styles.countButton}
+                onPress={() => updatePlayerCount(playerCount - 1)}
               >
-                <Settings size={16} color="#8B5CF6" />
-                <Text style={styles.configureButtonText}>Configure Special Roles</Text>
+                <BlurView intensity={15} tint="dark" style={styles.countButtonBlur}>
+                  <Minus size={20} color="white" />
+                </BlurView>
               </TouchableOpacity>
-            </>
-          )}
-        </GlassCard>
+              
+              <GlassCard style={styles.playerCountCard} intensity={15}>
+                <Text style={styles.playerCountText}>{playerCount}</Text>
+              </GlassCard>
+              
+              <TouchableOpacity 
+                style={styles.countButton}
+                onPress={() => updatePlayerCount(playerCount + 1)}
+              >
+                <BlurView intensity={15} tint="dark" style={styles.countButtonBlur}>
+                  <Plus size={20} color="white" />
+                </BlurView>
+              </TouchableOpacity>
+            </View>
+          
+            <View style={styles.gameInfoRow}>
+              <GlassCard style={styles.gameInfoItem} intensity={10}>
+                <Text style={styles.gameInfoLabel}>Expected Rounds</Text>
+                <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 0.6)}-{playerCount - 1}</Text>
+              </GlassCard>
+              <GlassCard style={styles.gameInfoItem} intensity={10}>
+                <Text style={styles.gameInfoLabel}>Game Duration</Text>
+                <Text style={styles.gameInfoValue}>{Math.ceil(playerCount * 2)}-{Math.ceil(playerCount * 3)}min</Text>
+              </GlassCard>
+            </View>
+          
+            <View style={styles.roleDistribution}>
+              <GlassCard style={styles.roleCard} intensity={10}>
+                <Text style={styles.roleEmoji}>👥</Text>
+                <Text style={styles.roleName}>Civilians</Text>
+                <Text style={styles.roleCount}>{roles.civilians}</Text>
+              </GlassCard>
+              <GlassCard style={[styles.roleCard, styles.adjustableRole]} intensity={10}>
+                <Text style={styles.roleEmoji}>🕵️</Text>
+                <Text style={styles.roleName}>Undercover</Text>
+                <View style={styles.roleAdjuster}>
+                  <TouchableOpacity 
+                    style={styles.roleButton}
+                    onPress={() => updateRoleCount('undercover', -1)}
+                  >
+                    <Minus size={12} color="white" />
+                  </TouchableOpacity>
+                  <Text style={styles.roleCount}>{roles.undercover}</Text>
+                  <TouchableOpacity 
+                    style={styles.roleButton}
+                    onPress={() => updateRoleCount('undercover', 1)}
+                  >
+                    <Plus size={12} color="white" />
+                  </TouchableOpacity>
+                </View>
+              </GlassCard>
+              <GlassCard style={[styles.roleCard, styles.adjustableRole]} intensity={10}>
+                <Text style={styles.roleEmoji}>❓</Text>
+                <Text style={styles.roleName}>Mr. White</Text>
+                <View style={styles.roleAdjuster}>
+                  <TouchableOpacity 
+                    style={styles.roleButton}
+                    onPress={() => updateRoleCount('mrWhite', -1)}
+                  >
+                    <Minus size={12} color="white" />
+                  </TouchableOpacity>
+                  <Text style={styles.roleCount}>{roles.mrWhite}</Text>
+                  <TouchableOpacity 
+                    style={styles.roleButton}
+                    onPress={() => updateRoleCount('mrWhite', 1)}
+                  >
+                    <Plus size={12} color="white" />
+                  </TouchableOpacity>
+                </View>
+              </GlassCard>
+            </View>
+          </GlassCard>
 
-      <TouchableOpacity 
-        style={styles.startButton}
-        onPress={startGameSetup}
-        disabled={isCreatingGame}
-      >
+          {/* Special Roles Section */}
+          <GlassCard style={styles.section} intensity={12}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Special Roles</Text>
+              <TouchableOpacity
+                style={styles.toggleContainer}
+                onPress={() => setUseSpecialRoles(!useSpecialRoles)}
+              >
+                {useSpecialRoles ? (
+                  <ToggleRight size={24} color="#8B5CF6" />
+                ) : (
+                  <ToggleLeft size={24} color="#6B7280" />
+                )}
+              </TouchableOpacity>
+            </View>
+            
+            {useSpecialRoles && (
+              <>
+                <Text style={styles.sectionDescription}>
+                  Add chaos and strategy with special roles! {selectedSpecialRoles.length} selected.
+                </Text>
+                <GlassButton
+                  title="Configure Special Roles"
+                  onPress={() => setShowSpecialRolesModal(true)}
+                  variant="secondary"
+                  size="medium"
+                  icon={<Settings size={16} color="#8B5CF6" />}
+                />
+              </>
+            )}
+          </GlassCard>
+        </ScrollView>
+
         <GlassButton
           title={isCreatingGame ? 'Creating Game...' : 'Setup Players'}
           onPress={startGameSetup}
@@ -322,8 +334,9 @@ export default function GameSetupScreen() {
           size="large"
           disabled={isCreatingGame}
           icon={<Play size={20} color="white" />}
+          style={styles.startButton}
         />
-      </TouchableOpacity>
+      </BlurView>
 
       {/* Player Names Modal */}
       <Modal
@@ -438,12 +451,23 @@ export default function GameSetupScreen() {
           </ScrollView>
         </LinearGradient>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+    position: 'relative',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  backgroundBlur: {
     flex: 1,
   },
   header: {
@@ -452,11 +476,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 20,
     paddingTop: 60,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  backButtonBlur: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleCard: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#F3F4F6',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   content: {
     flex: 1,
@@ -464,12 +507,22 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
+    padding: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#F3F4F6',
     marginBottom: 16,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  inputContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   playerCountContainer: {
     flexDirection: 'row',
@@ -479,10 +532,20 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   countButton: {
-    backgroundColor: '#8B5CF6',
     width: 44,
     height: 44,
     borderRadius: 22,
+    overflow: 'hidden',
+  },
+  countButtonBlur: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(139, 92, 246, 0.3)',
+  },
+  playerCountCard: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -490,8 +553,10 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     color: '#F3F4F6',
-    minWidth: 60,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   roleDistribution: {
     flexDirection: 'row',
@@ -499,9 +564,7 @@ const styles = StyleSheet.create({
   },
   roleCard: {
     flex: 1,
-    backgroundColor: '#374151',
     padding: 16,
-    borderRadius: 12,
     alignItems: 'center',
     gap: 8,
   },
@@ -512,11 +575,17 @@ const styles = StyleSheet.create({
     color: '#D1D5DB',
     fontSize: 12,
     fontWeight: '500',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   roleCount: {
     color: '#8B5CF6',
     fontSize: 18,
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   playerInputContainer: {
     flexDirection: 'row',
@@ -556,15 +625,17 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   leaderboardPreview: {
-    backgroundColor: '#374151',
-    borderRadius: 12,
-    padding: 16,
+    padding: 0,
     gap: 12,
   },
   leaderboardItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
   },
   leaderboardRank: {
     fontSize: 14,
@@ -601,28 +672,28 @@ const styles = StyleSheet.create({
   },
   gameInfoItem: {
     flex: 1,
-    backgroundColor: '#1F2937',
     padding: 12,
-    borderRadius: 8,
     alignItems: 'center',
   },
   gameInfoLabel: {
     fontSize: 12,
     color: '#9CA3AF',
     marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   gameInfoValue: {
     fontSize: 14,
     color: '#8B5CF6',
     fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   gameNameInput: {
-    backgroundColor: '#374151',
     color: '#F3F4F6',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#4B5563',
+    padding: 16,
     fontSize: 16,
   },
   sectionHeader: {
@@ -636,6 +707,9 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginBottom: 16,
     lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   toggleContainer: {
     padding: 4,
