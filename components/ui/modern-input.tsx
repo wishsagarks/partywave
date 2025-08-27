@@ -6,12 +6,14 @@ interface ModernInputProps extends TextInputProps {
   label?: string;
   error?: string;
   variant?: 'default' | 'glass' | 'minimal';
+  containerStyle?: ViewStyle;
 }
 
 export const ModernInput: React.FC<ModernInputProps> = ({
   label,
   error,
   variant = 'default',
+  containerStyle,
   style,
   onFocus,
   onBlur,
@@ -67,7 +69,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, containerStyle]}>
       {label && (
         <Text style={[
           styles.label,

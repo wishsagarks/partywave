@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { BookOpen, Plus, CreditCard as Edit3, Trash2, Eye, X, ToggleLeft, ToggleRight } from 'lucide-react-native';
 import { useWordLibraries } from '@/hooks/useGameData';
 import { WordPair } from '@/types/game';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function WordLibrariesScreen() {
+  const { colors } = useTheme();
   const { 
     libraries, 
     loading, 
@@ -111,62 +113,59 @@ export default function WordLibrariesScreen() {
 
   if (loading) {
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#8B5CF6" />
-          <Text style={styles.loadingText}>Loading word libraries...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading word libraries...</Text>
         </View>
-      </LinearGradient>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error}</Text>
+          <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
         </View>
-      </LinearGradient>
+      </View>
     );
   }
 
   return (
-    <LinearGradient
-      colors={['#1F2937', '#111827']}
-      style={styles.container}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>📚 Word Libraries</Text>
-        <Text style={styles.subtitle}>Manage your word collections</Text>
+        <Text style={[styles.title, { color: colors.text }]}>📚 Word Libraries</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Manage your word collections</Text>
       </View>
 
-      <View style={styles.statsCard}>
-        <Text style={styles.statsText}>
+      <View style={[styles.statsCard, { backgroundColor: colors.surface }]}>
+        <Text style={[styles.statsText, { color: colors.primary }]}>
           Active Word Pairs: {getTotalActivePairs()}
         </Text>
-        <Text style={styles.statsSubtext}>
+        <Text style={[styles.statsSubtext, { color: colors.textSecondary }]}>
           From {libraries.filter(lib => lib.is_active).length} active libraries
         </Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {libraries.map((library, index) => (
-          <View key={library.id} style={styles.libraryCard}>
+          <View key={library.id} style={[styles.libraryCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
             <View style={styles.libraryHeader}>
               <View style={styles.libraryInfo}>
                 <View style={styles.libraryTitleRow}>
-                  <Text style={styles.libraryName}>{library.name}</Text>
+                  <Text style={[styles.libraryName, { color: colors.text }]}>{library.name}</Text>
                   {library.is_official && (
-                    <View style={styles.officialBadge}>
+                    <View style={[styles.officialBadge, { backgroundColor: colors.primary }]}>
                       <Text style={styles.officialBadgeText}>OFFICIAL</Text>
                     </View>
                   )}
                 </View>
-                <Text style={styles.libraryCount}>
+                <Text style={[styles.libraryCount, { color: colors.textSecondary }]}>
                   {library.pairs.length} pairs
                 </Text>
                 {library.description && (
-                  <Text style={styles.libraryDescription}>
+                  <Text style={[styles.libraryDescription, { color: colors.textSecondary }]}>
                     {library.description}
                   </Text>
                 )}
@@ -174,13 +173,13 @@ export default function WordLibrariesScreen() {
               
               <View style={styles.libraryActions}>
                 <TouchableOpacity
-                  style={styles.viewButton}
+                  style={[styles.viewButton, { backgroundColor: `${colors.primary}20`, borderColor: colors.primary }]}
                   onPress={() => {
                     setSelectedLibraryIndex(index);
                     setShowLibraryModal(true);
                   }}
                 >
-                  <Eye size={16} color="#8B5CF6" />
+                  <Eye size={16} color={colors.primary} />
                 </TouchableOpacity>
                 
                 <TouchableOpacity
@@ -188,9 +187,9 @@ export default function WordLibrariesScreen() {
                   onPress={() => handleToggleLibrary(library.id, library.is_active)}
                 >
                   {library.is_active ? (
-                    <ToggleRight size={24} color="#10B981" />
+                    <ToggleRight size={24} color={colors.success} />
                   ) : (
-                    <ToggleLeft size={24} color="#6B7280" />
+                    <ToggleLeft size={24} color={colors.textSecondary} />
                   )}
                 </TouchableOpacity>
               </View>
@@ -199,11 +198,11 @@ export default function WordLibrariesScreen() {
         ))}
 
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.primary }]}
           onPress={() => setShowAddModal(true)}
         >
           <Plus size={20} color="white" />
-          <Text style={styles.addButtonText}>Add Custom Word Pair</Text>
+          <Text style={[styles.addButtonText, { color: 'white' }]}>Add Custom Word Pair</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -405,7 +404,7 @@ export default function WordLibrariesScreen() {
           </View>
         </LinearGradient>
       </Modal>
-    </LinearGradient>
+    </View>
   );
 }
 
