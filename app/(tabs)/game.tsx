@@ -150,7 +150,7 @@ export default function GameSetupScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+        colors={['#0a0a1a', '#0f0f23', '#1a1a2e', '#16213e']}
         style={styles.backgroundGradient}
       />
 
@@ -348,7 +348,7 @@ export default function GameSetupScreen() {
         presentationStyle="pageSheet"
       >
         <LinearGradient
-          colors={['#1F2937', '#111827']}
+          colors={['#0a0a1a', '#0f0f23']}
           style={styles.modalContainer}
         >
           <View style={styles.modalHeader}>
@@ -396,7 +396,7 @@ export default function GameSetupScreen() {
         presentationStyle="pageSheet"
       >
         <LinearGradient
-          colors={['#1F2937', '#111827']}
+          colors={['#0a0a1a', '#0f0f23']}
           style={styles.modalContainer}
         >
           <View style={styles.modalHeader}>
