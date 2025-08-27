@@ -22,6 +22,7 @@ interface GameFlowState {
   isProcessingVotes: boolean;
   mrWhiteGuess: string;
   showMrWhiteGuess: boolean;
+  showEliminationResult: boolean;
 }
 
 interface GameFlowActions {
@@ -60,6 +61,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     isProcessingVotes: false,
     mrWhiteGuess: '',
     showMrWhiteGuess: false,
+    showEliminationResult: false,
   });
 
   const updateState = useCallback((updates: Partial<GameFlowState>) => {
@@ -218,13 +220,14 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ 
         eliminatedPlayer,
         eliminationHistory: [...state.eliminationHistory, eliminationEntry],
+        showEliminationResult: true,
+        currentPhase: 'elimination-result',
       });
 
       if (eliminatedPlayer.role === 'mrwhite') {
         log('Mr. White eliminated, showing guess screen');
         updateState({ 
           showMrWhiteGuess: true,
-          currentPhase: 'mr-white-guess',
           isProcessingVotes: false,
         });
       } else {
@@ -249,12 +252,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           updateState({
             players: updatedPlayers,
             currentRound: state.currentRound + 1,
-            currentPhase: 'description',
             votingResults: {},
             individualVotes: {},
             currentVoterIndex: 0,
             isProcessingVotes: false,
-            eliminatedPlayer: null,
           });
         }
       }
@@ -287,6 +288,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ 
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
+        showEliminationResult: false,
       });
 
       if (isCorrect) {
@@ -305,6 +307,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           gameWinner: 'Mr. White',
           currentPhase: 'final-results',
           eliminationHistory: updatedHistory,
+          showEliminationResult: false,
         });
         await endGame('Mr. White');
       } else {
@@ -322,6 +325,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
             players: scoredPlayers,
             gameWinner: winner,
             currentPhase: 'final-results',
+            showEliminationResult: false,
           });
           await endGame(winner);
         } else {
@@ -329,11 +333,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           updateState({
             players: updatedPlayers,
             currentRound: state.currentRound + 1,
-            currentPhase: 'description',
             votingResults: {},
             individualVotes: {},
             currentVoterIndex: 0,
-            eliminatedPlayer: null,
+            showEliminationResult: false,
           });
         }
       }
@@ -342,6 +345,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ 
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
+        showEliminationResult: false,
       });
       throw error;
     }
@@ -365,6 +369,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ 
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
+        showEliminationResult: false,
       });
 
       const updatedPlayers = state.players.map(p => 
@@ -380,6 +385,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           players: scoredPlayers,
           gameWinner: winner,
           currentPhase: 'final-results',
+          showEliminationResult: false,
         });
         await endGame(winner);
       } else {
@@ -387,11 +393,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         updateState({
           players: updatedPlayers,
           currentRound: state.currentRound + 1,
-          currentPhase: 'description',
           votingResults: {},
           individualVotes: {},
           currentVoterIndex: 0,
-          eliminatedPlayer: null,
+          showEliminationResult: false,
         });
       }
     } catch (error) {
@@ -399,6 +404,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ 
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
+        showEliminationResult: false,
       });
       throw error;
     }
@@ -456,6 +462,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       isProcessingVotes: false,
       mrWhiteGuess: '',
       showMrWhiteGuess: false,
+      showEliminationResult: false,
     });
   }, [log]);
 
