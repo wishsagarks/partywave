@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
 
 type Theme = 'light' | 'dark';
@@ -74,8 +74,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const colors = theme === 'light' ? lightColors : darkColors;
 
+  const contextValue: ThemeContextType = {
+    theme: theme,
+    toggleTheme: toggleTheme,
+    colors: colors
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme: theme, toggleTheme: toggleTheme, colors: colors }}>
+    <ThemeContext.Provider value={contextValue}>
       {children}
     </ThemeContext.Provider>
   );
