@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert 
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { GameService } from '@/services/gameService';
-
 import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward, Zap, Vote, Clock } from 'lucide-react-native';
 import { useGameFlowManager } from '@/hooks/useGameFlowManager';
 import { ModernCard } from '@/components/ui/modern-card';
