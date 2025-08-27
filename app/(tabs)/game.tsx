@@ -6,6 +6,8 @@ import { router } from 'expo-router';
 import { GameService } from '@/services/gameService';
 import { useLeaderboard } from '@/hooks/useGameData';
 import { SpecialRole } from '@/types/game';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GlassButton } from '@/components/ui/GlassButton';
 
 export default function GameSetupScreen() {
   const { topPlayers, loading: leaderboardLoading } = useLeaderboard();
@@ -167,7 +169,7 @@ export default function GameSetupScreen() {
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Quick Leaderboard Preview */}
-        <View style={styles.section}>
+        <GlassCard style={styles.section}>
           <Text style={styles.sectionTitle}>🏆 Top Players</Text>
           {leaderboardLoading ? (
             <Text style={styles.loadingText}>Loading...</Text>
@@ -185,9 +187,9 @@ export default function GameSetupScreen() {
               )}
             </View>
           )}
-        </View>
+        </GlassCard>
 
-        <View style={styles.section}>
+        <GlassCard style={styles.section}>
           <Text style={styles.sectionTitle}>Game Name</Text>
           <TextInput
             style={styles.gameNameInput}
@@ -196,9 +198,9 @@ export default function GameSetupScreen() {
             placeholder="Enter game session name (e.g., 'Friday Night Game')"
             placeholderTextColor="#9CA3AF"
           />
-        </View>
+        </GlassCard>
 
-        <View style={styles.section}>
+        <GlassCard style={styles.section}>
           <Text style={styles.sectionTitle}>Player Count</Text>
           <View style={styles.playerCountContainer}>
             <TouchableOpacity 
@@ -274,10 +276,10 @@ export default function GameSetupScreen() {
               </View>
             </View>
           </View>
-        </View>
+        </GlassCard>
       </ScrollView>
         {/* Special Roles Section */}
-        <View style={styles.section}>
+        <GlassCard style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Special Roles</Text>
             <TouchableOpacity
@@ -306,22 +308,21 @@ export default function GameSetupScreen() {
               </TouchableOpacity>
             </>
           )}
-        </View>
+        </GlassCard>
 
       <TouchableOpacity 
         style={styles.startButton}
         onPress={startGameSetup}
         disabled={isCreatingGame}
       >
-        <LinearGradient
-          colors={['#8B5CF6', '#7C3AED']}
-          style={styles.startButtonGradient}
-        >
-          <Play size={20} color="white" />
-          <Text style={styles.startButtonText}>
-            {isCreatingGame ? 'Creating Game...' : 'Setup Players'}
-          </Text>
-        </LinearGradient>
+        <GlassButton
+          title={isCreatingGame ? 'Creating Game...' : 'Setup Players'}
+          onPress={startGameSetup}
+          variant="primary"
+          size="large"
+          disabled={isCreatingGame}
+          icon={<Play size={20} color="white" />}
+        />
       </TouchableOpacity>
 
       {/* Player Names Modal */}

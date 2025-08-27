@@ -99,6 +99,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
     paddingHorizontal: 32,
+  },
   title: {
     fontSize: 36,
     fontWeight: 'bold',
