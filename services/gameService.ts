@@ -593,9 +593,9 @@ export class GameService {
   static handleSpecialRoleElimination(
     players: Player[], 
     eliminatedPlayerId: string
-  ): { updatedPlayers: Player[]; chainEliminations: string[] } {
+  ): { updatedPlayers: Player[]; chainEliminations: Array<{ playerId: string; method: 'chain' | 'revenger' }> } {
     const updatedPlayers = [...players];
-    const chainEliminations: string[] = [];
+    const chainEliminations: Array<{ playerId: string; method: 'chain' | 'revenger' }> = [];
     const eliminatedPlayer = updatedPlayers.find(p => p.id === eliminatedPlayerId);
 
     if (!eliminatedPlayer) {
@@ -610,7 +610,7 @@ export class GameService {
         updatedPlayers[loverIndex].isAlive = false;
         updatedPlayers[loverIndex].isEliminated = true;
         updatedPlayers[loverIndex].canVote = false;
-        chainEliminations.push(lover.id);
+        chainEliminations.push({ playerId: lover.id, method: 'chain' });
       }
     }
 

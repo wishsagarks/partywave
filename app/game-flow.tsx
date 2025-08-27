@@ -20,6 +20,7 @@ export default function GameFlow() {
     wordPair,
     gameWinner,
     eliminatedPlayer,
+    eliminationHistory,
     votingResults,
     individualVotes,
     currentVoterIndex,
@@ -500,6 +501,36 @@ export default function GameFlow() {
               </ModernCard>
             ))}
           </View>
+          
+          {/* Elimination History */}
+          {eliminationHistory.length > 0 && (
+            <ModernCard variant="glass" style={styles.eliminationHistoryCard}>
+              <Text style={styles.eliminationHistoryTitle}>Elimination History</Text>
+              <View style={styles.eliminationHistoryList}>
+                {eliminationHistory.map((elimination, index) => (
+                  <View key={index} style={styles.eliminationHistoryItem}>
+                    <View style={styles.eliminationRound}>
+                      <Text style={styles.eliminationRoundText}>R{elimination.round}</Text>
+                    </View>
+                    <View style={styles.eliminationDetails}>
+                      <Text style={styles.eliminationPlayerName}>
+                        {elimination.player.name}
+                      </Text>
+                      <Text style={[styles.eliminationPlayerRole, { color: getRoleColor(elimination.player.role) }]}>
+                        {getRoleEmoji(elimination.player.role)} {getRoleName(elimination.player.role)}
+                      </Text>
+                      <Text style={styles.eliminationMethod}>
+                        {elimination.eliminationMethod === 'voting' && `${elimination.votesReceived} votes`}
+                        {elimination.eliminationMethod === 'chain' && 'Chain elimination'}
+                        {elimination.eliminationMethod === 'revenger' && 'Revenger target'}
+                        {elimination.eliminationMethod === 'mr-white-guess' && 'Mr. White won'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ModernCard>
+          )}
         </ScrollView>
 
         <View style={styles.finalButtonsContainer}>
@@ -836,5 +867,58 @@ const styles = StyleSheet.create({
   finalButtonsContainer: {
     padding: 24,
     gap: 16,
+  },
+  eliminationHistoryCard: {
+    marginBottom: 24,
+  },
+  eliminationHistoryTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  eliminationHistoryList: {
+    gap: 12,
+  },
+  eliminationHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+  },
+  eliminationRound: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#667eea',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eliminationRoundText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  eliminationDetails: {
+    flex: 1,
+    gap: 4,
+  },
+  eliminationPlayerName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  eliminationPlayerRole: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  eliminationMethod: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    fontStyle: 'italic',
   },
 });

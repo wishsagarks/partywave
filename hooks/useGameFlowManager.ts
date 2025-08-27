@@ -10,6 +10,12 @@ interface GameFlowState {
   wordPair: any;
   gameWinner: string | null;
   eliminatedPlayer: Player | null;
+  eliminationHistory: Array<{
+    round: number;
+    player: Player;
+    votesReceived: number;
+    eliminationMethod: 'voting' | 'chain' | 'revenger' | 'mr-white-guess';
+  }>;
   votingResults: Record<string, number>;
   individualVotes: Record<string, string>;
   currentVoterIndex: number;
@@ -47,6 +53,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     wordPair: null,
     gameWinner: null,
     eliminatedPlayer: null,
+    eliminationHistory: [],
     votingResults: {},
     individualVotes: {},
     currentVoterIndex: 0,
@@ -87,6 +94,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         wordPair: gameData.wordPair,
         currentPhase: 'word-distribution',
         currentRound: 1,
+        eliminationHistory: [],
       });
 
       log('Game initialized successfully', gameData);
@@ -192,6 +200,14 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
 
       log('Player eliminated', { player: eliminatedPlayer.name, role: eliminatedPlayer.role });
 
+      // Add to elimination history
+      const eliminationEntry = {
+        round: state.currentRound,
+        player: eliminatedPlayer,
+        votesReceived: state.votingResults[eliminatedPlayerId] || 0,
+        eliminationMethod: 'voting' as const,
+      };
+
       await GameService.saveGameRound(
         state.gameId,
         state.currentRound,
@@ -199,7 +215,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         state.votingResults
       );
 
-      updateState({ eliminatedPlayer });
+      updateState({ 
+        eliminatedPlayer,
+        eliminationHistory: [...state.eliminationHistory, eliminationEntry],
+      });
 
       if (eliminatedPlayer.role === 'mrwhite') {
         log('Mr. White eliminated, showing guess screen');
@@ -273,10 +292,19 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       if (isCorrect) {
         log('Mr. White guessed correctly, wins the game');
         const scoredPlayers = GameService.calculatePoints(state.players, 'Mr. White');
+        
+        // Update elimination history for Mr. White guess success
+        const updatedHistory = state.eliminationHistory.map(entry => 
+          entry.player.id === state.eliminatedPlayer?.id 
+            ? { ...entry, eliminationMethod: 'mr-white-guess' as const }
+            : entry
+        );
+        
         updateState({
           players: scoredPlayers,
           gameWinner: 'Mr. White',
           currentPhase: 'final-results',
+          eliminationHistory: updatedHistory,
         });
         await endGame('Mr. White');
       } else {
@@ -421,6 +449,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       wordPair: null,
       gameWinner: null,
       eliminatedPlayer: null,
+      eliminationHistory: [],
       votingResults: {},
       individualVotes: {},
       currentVoterIndex: 0,

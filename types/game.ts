@@ -44,6 +44,12 @@ export interface GameState {
   wordPair: WordPair | null;
   votingResults: { [playerId: string]: number };
   eliminatedPlayer: Player | null;
+  eliminationHistory: Array<{
+    round: number;
+    player: Player;
+    votesReceived: number;
+    eliminationMethod: 'voting' | 'chain' | 'revenger' | 'mr-white-guess';
+  }>;
   gameWinner: string;
   startTime: Date;
   endTime?: Date;
