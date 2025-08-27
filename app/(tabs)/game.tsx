@@ -150,7 +150,7 @@ export default function GameSetupScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0F0C29', '#24243e', '#302B63', '#8B5CF6']}
+        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
         style={styles.backgroundGradient}
       />
 
@@ -294,7 +294,7 @@ export default function GameSetupScreen() {
         <Card variant="glass" style={styles.section}>
           <View style={styles.specialRolesHeader}>
             <View style={styles.sectionHeader}>
-              <Zap size={20} color="#8B5CF6" />
+              <Zap size={20} color="#f093fb" />
               <Text style={styles.sectionTitle}>Special Roles</Text>
             </View>
             <TouchableOpacity
@@ -302,9 +302,9 @@ export default function GameSetupScreen() {
               onPress={() => setUseSpecialRoles(!useSpecialRoles)}
             >
               {useSpecialRoles ? (
-                <ToggleRight size={28} color="#8B5CF6" />
+                <ToggleRight size={28} color="#f093fb" />
               ) : (
-                <ToggleLeft size={28} color="#6B7280" />
+                <ToggleLeft size={28} color="#11998e" />
               )}
             </TouchableOpacity>
           </View>
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
   gameInfoValue: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#8B5CF6',
+    color: '#f093fb',
   },
   roleDistribution: {
     gap: 16,

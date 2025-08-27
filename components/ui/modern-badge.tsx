@@ -21,27 +21,27 @@ export const ModernBadge: React.FC<ModernBadgeProps> = ({
     switch (variant) {
       case 'primary':
         return { 
-          backgroundColor: '#f093fb', 
+          backgroundColor: '#667eea', 
           color: '#FFFFFF',
-          gradientColors: ['#f093fb', '#f5576c']
+          gradientColors: ['#667eea', '#764ba2']
         };
       case 'secondary':
+        return { 
+          backgroundColor: '#1a1a2e', 
+          color: '#FFFFFF',
+          gradientColors: ['#1a1a2e', '#16213e']
+        };
+      case 'success':
         return { 
           backgroundColor: '#11998e', 
           color: '#FFFFFF',
           gradientColors: ['#11998e', '#38ef7d']
         };
-      case 'success':
-        return { 
-          backgroundColor: '#4ecdc4', 
-          color: '#FFFFFF',
-          gradientColors: ['#4ecdc4', '#44a08d']
-        };
       case 'warning':
         return { 
           backgroundColor: '#feca57', 
           color: '#FFFFFF',
-          gradientColors: ['#feca57', '#ff9ff3']
+          gradientColors: ['#feca57', '#f39c12']
         };
       case 'destructive':
         return { 
@@ -51,15 +51,15 @@ export const ModernBadge: React.FC<ModernBadgeProps> = ({
         };
       case 'info':
         return { 
-          backgroundColor: '#74b9ff', 
+          backgroundColor: '#667eea', 
           color: '#FFFFFF',
-          gradientColors: ['#74b9ff', '#0984e3']
+          gradientColors: ['#667eea', '#764ba2']
         };
       default:
         return { 
-          backgroundColor: '#a29bfe', 
+          backgroundColor: '#2d3748', 
           color: '#FFFFFF',
-          gradientColors: ['#a29bfe', '#6c5ce7']
+          gradientColors: ['#2d3748', '#4a5568']
         };
     }
   };

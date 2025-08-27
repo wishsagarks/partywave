@@ -43,9 +43,9 @@ export const ModernInput: React.FC<ModernInputProps> = ({
     if (variant === 'glass') {
       return {
         ...baseStyle,
-        backgroundColor: 'rgba(139, 69, 255, 0.1)',
+        backgroundColor: 'rgba(15, 15, 35, 0.8)',
         borderWidth: 1,
-        borderColor: isFocused ? '#f093fb' : 'rgba(255, 154, 158, 0.3)',
+        borderColor: isFocused ? '#667eea' : 'rgba(102, 126, 234, 0.3)',
       };
     }
 
@@ -54,7 +54,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
         ...baseStyle,
         backgroundColor: 'transparent',
         borderBottomWidth: 2,
-        borderBottomColor: isFocused ? '#f093fb' : '#11998e',
+        borderBottomColor: isFocused ? '#667eea' : 'rgba(102, 126, 234, 0.5)',
         borderRadius: 0,
         paddingHorizontal: 0,
       };
@@ -62,9 +62,9 @@ export const ModernInput: React.FC<ModernInputProps> = ({
 
     return {
       ...baseStyle,
-      backgroundColor: 'rgba(45, 27, 105, 0.8)',
+      backgroundColor: 'rgba(15, 15, 35, 0.9)',
       borderWidth: 2,
-      borderColor: error ? '#ff6b6b' : (isFocused ? '#f093fb' : '#11998e'),
+      borderColor: error ? '#ff6b6b' : (isFocused ? '#667eea' : 'rgba(102, 126, 234, 0.4)',
     };
   };
 
@@ -73,7 +73,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
       {label && (
         <Text style={[
           styles.label,
-          { color: isFocused ? '#f093fb' : '#d299c2' }
+          { color: isFocused ? '#667eea' : '#a0aec0' }
         ]}>
           {label}
         </Text>
@@ -84,14 +84,13 @@ export const ModernInput: React.FC<ModernInputProps> = ({
             getInputStyle(),
             style,
           ]}
-          placeholderTextColor="#718096"
+          placeholderTextColor="#4a5568"
           onFocus={handleFocus}
-          colors={['#f093fb', '#f5576c']}
           {...props}
         />
         {isFocused && variant !== 'minimal' && (
           <LinearGradient
-            colors={['#667eea', '#764ba2']}
+            colors={['rgba(102, 126, 234, 0.2)', 'rgba(118, 75, 162, 0.1)']}
             style={styles.focusGradient}
           />
         )}

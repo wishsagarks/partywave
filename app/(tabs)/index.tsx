@@ -12,7 +12,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+        colors={['#0f0f23', '#1a1a2e', '#16213e', '#0f3460']}
         style={styles.backgroundGradient}
       />
       

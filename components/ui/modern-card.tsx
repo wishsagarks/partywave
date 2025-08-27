@@ -30,31 +30,33 @@ export const ModernCard: React.FC<ModernCardProps> = ({
     switch (variant) {
       case 'glass':
         return {
-          gradient: ['rgba(139, 69, 255, 0.15)', 'rgba(255, 107, 107, 0.1)'],
-          border: 'rgba(255, 154, 158, 0.3)',
+          gradient: ['rgba(15, 15, 35, 0.85)', 'rgba(26, 26, 46, 0.9)'],
+          border: 'rgba(102, 126, 234, 0.3)',
+          backdrop: true,
         };
       case 'gradient':
         return {
-          gradient: ['#667eea', '#764ba2', '#f093fb', '#f5576c'],
+          gradient: ['#1a1a2e', '#16213e', '#0f3460', '#533483'],
           border: 'transparent',
         };
       case 'elevated':
         return {
-          gradient: ['#2D1B69', '#11998e'],
-          border: '#38ef7d',
+          gradient: ['#0f0f23', '#1a1a2e'],
+          border: 'rgba(102, 126, 234, 0.4)',
         };
       default:
         return {
-          gradient: ['#667eea', '#764ba2'],
+          gradient: ['#0f0f23', '#1a1a2e'],
           border: 'transparent',
         };
     }
   };
 
   if (variant === 'glass') {
+    const styles = getVariantStyles();
     return (
       <View style={[baseStyle, style]}>
-        <BlurView intensity={20} tint="dark" style={{
+        <BlurView intensity={25} tint="dark" style={{
           position: 'absolute',
           top: 0,
           left: 0,
@@ -63,7 +65,7 @@ export const ModernCard: React.FC<ModernCardProps> = ({
           borderRadius: 20,
         }} />
         <LinearGradient
-          colors={['rgba(255, 255, 255, 0.1)', 'rgba(255, 255, 255, 0.05)']}
+          colors={styles.gradient}
           style={{
             position: 'absolute',
             top: 0,
@@ -80,7 +82,7 @@ export const ModernCard: React.FC<ModernCardProps> = ({
           right: 0,
           bottom: 0,
           borderWidth: 1,
-          borderColor: 'rgba(255, 255, 255, 0.2)',
+          borderColor: styles.border,
           borderRadius: 20,
         }} />
         <View style={{ position: 'relative', zIndex: 1 }}>
@@ -91,9 +93,10 @@ export const ModernCard: React.FC<ModernCardProps> = ({
   }
 
   if (variant === 'gradient') {
+    const styles = getVariantStyles();
     return (
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={styles.gradient}
         style={[baseStyle, style]}
       >
         {children}
@@ -102,13 +105,14 @@ export const ModernCard: React.FC<ModernCardProps> = ({
   }
 
   if (variant === 'elevated') {
+    const styles = getVariantStyles();
     return (
       <View style={[
         baseStyle,
         {
-          backgroundColor: '#1a1a2e',
+          backgroundColor: '#0f0f23',
           borderWidth: 1,
-          borderColor: '#16213e',
+          borderColor: styles.border,
           shadowOpacity: 0.3,
         },
         style
@@ -121,7 +125,7 @@ export const ModernCard: React.FC<ModernCardProps> = ({
   return (
     <View style={[
       baseStyle,
-      { backgroundColor: '#0f0f23' },
+      { backgroundColor: '#0a0a1a' },
       style
     ]}>
       {children}

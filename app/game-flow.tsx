@@ -132,16 +132,16 @@ export default function GameFlow() {
 
     if (isProcessingVotes) {
       return (
-        <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
           <View style={styles.header}>
-            <Vote size={24} color="#667eea" />
+            <Vote size={24} color="#FFFFFF" />
             <Text style={styles.title}>Processing Votes...</Text>
             <Text style={styles.subtitle}>Round {currentRound}</Text>
           </View>
 
           <View style={styles.centerContent}>
             <ModernCard variant="glass" style={styles.processingCard}>
-              <Clock size={32} color="#667eea" />
+              <Clock size={32} color="#f093fb" />
               <Text style={styles.processingText}>Counting votes and determining elimination...</Text>
             </ModernCard>
           </View>
@@ -151,7 +151,7 @@ export default function GameFlow() {
 
     if (!currentVoter) {
       return (
-        <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
           <View style={styles.header}>
             <Text style={styles.title}>Voting Complete</Text>
             <Text style={styles.subtitle}>Round {currentRound}</Text>
@@ -161,9 +161,9 @@ export default function GameFlow() {
     }
 
     return (
-      <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
-          <Vote size={24} color="#667eea" />
+          <Vote size={24} color="#FFFFFF" />
           <Text style={styles.title}>Voting Phase</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
         </View>
@@ -257,7 +257,7 @@ export default function GameFlow() {
     const currentPlayer = players[currentPlayerIndex];
     
     return (
-      <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Word Distribution</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
@@ -326,7 +326,7 @@ export default function GameFlow() {
     const alivePlayers = getAlivePlayers();
     
     return (
-      <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Description Phase</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
@@ -369,7 +369,7 @@ export default function GameFlow() {
   // Discussion phase
   if (currentPhase === 'discussion') {
     return (
-      <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Discussion Phase</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
@@ -378,7 +378,7 @@ export default function GameFlow() {
         <View style={styles.centerContent}>
           <ModernCard variant="glass" style={styles.discussionCard}>
             <View style={styles.discussionHeader}>
-              <MessageCircle size={20} color="#667eea" />
+              <MessageCircle size={20} color="#f093fb" />
               <Text style={styles.discussionTitle}>Discussion Time</Text>
             </View>
             
@@ -405,7 +405,7 @@ export default function GameFlow() {
   // Mr. White guess phase
   if (currentPhase === 'mr-white-guess' || showMrWhiteGuess) {
     return (
-      <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Mr. White's Last Chance</Text>
           <Text style={styles.subtitle}>{eliminatedPlayer?.name} was eliminated</Text>
@@ -453,9 +453,9 @@ export default function GameFlow() {
   // Final results
   if (currentPhase === 'final-results') {
     return (
-      <LinearGradient colors={['#0f0f23', '#1a1a2e']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
-          <Trophy size={32} color="#d69e2e" />
+          <Trophy size={32} color="#feca57" />
           <Text style={styles.title}>Game Over</Text>
         </View>
 
@@ -568,7 +568,7 @@ const styles = StyleSheet.create({
   currentPlayerName: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#667eea',
+    color: '#f093fb',
     marginBottom: 16,
   },
   wordRevealContainer: {
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   currentVoterName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#667eea',
+    color: '#f093fb',
   },
   votingInstructions: {
     fontSize: 14,
