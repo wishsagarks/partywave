@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Play, Trophy, Users, Zap, Star } from 'lucide-react-native';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Play, Trophy, Users, Zap, Star, Crown, Shield, Target } from 'lucide-react-native';
+import { ModernCard } from '@/components/ui/modern-card';
+import { ModernButton } from '@/components/ui/modern-button';
+import { ModernBadge } from '@/components/ui/modern-badge';
 
 const { width, height } = Dimensions.get('window');
 
@@ -12,17 +12,17 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#0F0C29', '#24243e', '#302B63', '#8B5CF6']}
+        colors={['#0f0f23', '#1a1a2e', '#16213e', '#0f3460']}
         style={styles.backgroundGradient}
       />
       
-      {/* Floating particles effect */}
-      <View style={styles.particlesContainer}>
-        {[...Array(20)].map((_, i) => (
+      {/* Animated background elements */}
+      <View style={styles.backgroundElements}>
+        {[...Array(15)].map((_, i) => (
           <View
             key={i}
             style={[
-              styles.particle,
+              styles.floatingElement,
               {
                 left: Math.random() * width,
                 top: Math.random() * height,
@@ -33,108 +33,167 @@ export default function HomeScreen() {
         ))}
       </View>
 
-      <View style={styles.content}>
-        {/* Header Section */}
-        <View style={styles.header}>
-          <Card variant="glass" style={styles.titleCard}>
-            <View style={styles.titleContainer}>
-              <Text style={styles.gameIcon}>🎭</Text>
-              <View>
-                <Text style={styles.title}>UNDERCOVER</Text>
-                <Text style={styles.subtitle}>Social Deduction Game</Text>
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.content}>
+          {/* Hero Section */}
+          <View style={styles.heroSection}>
+            <ModernCard variant="glass" style={styles.heroCard}>
+              <View style={styles.heroContent}>
+                <Text style={styles.gameIcon}>🎭</Text>
+                <View style={styles.titleContainer}>
+                  <Text style={styles.title}>UNDERCOVER</Text>
+                  <Text style={styles.subtitle}>Social Deduction Masterpiece</Text>
+                </View>
+                <ModernBadge variant="success" gradient size="md">
+                  🟢 Ready to Play
+                </ModernBadge>
+              </View>
+            </ModernCard>
+          </View>
+
+          {/* Quick Stats */}
+          <View style={styles.statsSection}>
+            <View style={styles.statsGrid}>
+              <ModernCard variant="elevated" style={styles.statCard}>
+                <Users size={24} color="#667eea" />
+                <Text style={styles.statNumber}>3-20</Text>
+                <Text style={styles.statLabel}>Players</Text>
+              </ModernCard>
+              
+              <ModernCard variant="elevated" style={styles.statCard}>
+                <Target size={24} color="#38a169" />
+                <Text style={styles.statNumber}>5-15</Text>
+                <Text style={styles.statLabel}>Minutes</Text>
+              </ModernCard>
+              
+              <ModernCard variant="elevated" style={styles.statCard}>
+                <Crown size={24} color="#d69e2e" />
+                <Text style={styles.statNumber}>∞</Text>
+                <Text style={styles.statLabel}>Rounds</Text>
+              </ModernCard>
+            </View>
+          </View>
+
+          {/* Main Actions */}
+          <View style={styles.actionSection}>
+            <ModernButton
+              variant="primary"
+              size="xl"
+              onPress={() => router.push('/game')}
+              style={styles.primaryButton}
+              icon={<Play size={24} color="white" />}
+            >
+              Start New Game
+            </ModernButton>
+
+            <View style={styles.secondaryActions}>
+              <ModernButton
+                variant="secondary"
+                size="lg"
+                onPress={() => router.push('/leaderboard')}
+                style={styles.secondaryButton}
+                icon={<Trophy size={20} color="#d69e2e" />}
+              >
+                Leaderboard
+              </ModernButton>
+              
+              <ModernButton
+                variant="ghost"
+                size="lg"
+                onPress={() => router.push('/word-libraries')}
+                style={styles.secondaryButton}
+                icon={<Zap size={20} color="#667eea" />}
+              >
+                Word Packs
+              </ModernButton>
+            </View>
+          </View>
+
+          {/* Game Features */}
+          <View style={styles.featuresSection}>
+            <Text style={styles.sectionTitle}>Why You'll Love It</Text>
+            <View style={styles.featuresGrid}>
+              <ModernCard variant="glass" style={styles.featureCard}>
+                <Shield size={28} color="#667eea" />
+                <Text style={styles.featureTitle}>Pass & Play</Text>
+                <Text style={styles.featureDescription}>
+                  One device for everyone. No downloads required.
+                </Text>
+              </ModernCard>
+              
+              <ModernCard variant="glass" style={styles.featureCard}>
+                <Star size={28} color="#38a169" />
+                <Text style={styles.featureTitle}>Special Roles</Text>
+                <Text style={styles.featureDescription}>
+                  Add chaos with unique abilities and powers.
+                </Text>
+              </ModernCard>
+              
+              <ModernCard variant="glass" style={styles.featureCard}>
+                <Target size={28} color="#e53e3e" />
+                <Text style={styles.featureTitle}>Mind Games</Text>
+                <Text style={styles.featureDescription}>
+                  Bluff, deduce, and outsmart your friends.
+                </Text>
+              </ModernCard>
+            </View>
+          </View>
+
+          {/* How to Play */}
+          <ModernCard variant="gradient" style={styles.howToPlayCard}>
+            <Text style={styles.howToPlayTitle}>How to Play</Text>
+            <Text style={styles.howToPlayDescription}>
+              Master the art of deception in this thrilling social game where words are weapons 
+              and trust is a luxury you can't afford.
+            </Text>
+            
+            <View style={styles.gameSteps}>
+              <View style={styles.step}>
+                <ModernBadge variant="primary" gradient size="lg">1</ModernBadge>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Get Your Secret Word</Text>
+                  <Text style={styles.stepDescription}>
+                    Receive your hidden word - but beware, some players have different words!
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.step}>
+                <ModernBadge variant="warning" gradient size="lg">2</ModernBadge>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Describe Cleverly</Text>
+                  <Text style={styles.stepDescription}>
+                    Give clues without revealing your word. Stay subtle, stay alive.
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.step}>
+                <ModernBadge variant="destructive" gradient size="lg">3</ModernBadge>
+                <View style={styles.stepContent}>
+                  <Text style={styles.stepTitle}>Vote & Eliminate</Text>
+                  <Text style={styles.stepDescription}>
+                    Discuss suspicions and vote out the impostors hiding among you.
+                  </Text>
+                </View>
               </View>
             </View>
-            
-            <View style={styles.statusContainer}>
-              <Badge variant="success">
-                <Text style={styles.statusText}>🟢 Ready to Play</Text>
-              </Badge>
-            </View>
-          </Card>
-        </View>
+          </ModernCard>
 
-        {/* Main Action Buttons */}
-        <View style={styles.actionSection}>
-          <Button
-            variant="primary"
-            size="lg"
-            onPress={() => router.push('/game')}
-            style={styles.primaryButton}
-            icon={<Play size={24} color="white" />}
-          >
-            Start New Game
-          </Button>
-
-          <View style={styles.secondaryActions}>
-            <Button
-              variant="secondary"
-              size="md"
-              onPress={() => router.push('/leaderboard')}
-              style={styles.secondaryButton}
-              icon={<Trophy size={20} color="#F59E0B" />}
+          {/* Call to Action */}
+          <View style={styles.ctaSection}>
+            <Text style={styles.ctaTitle}>Ready for the Ultimate Mind Game?</Text>
+            <ModernButton
+              variant="success"
+              size="xl"
+              onPress={() => router.push('/game')}
+              icon={<Play size={24} color="white" />}
             >
-              Leaderboard
-            </Button>
-            
-            <Button
-              variant="ghost"
-              size="md"
-              onPress={() => router.push('/word-libraries')}
-              style={styles.secondaryButton}
-              icon={<Zap size={20} color="#8B5CF6" />}
-            >
-              Word Packs
-            </Button>
+              Start Playing Now
+            </ModernButton>
           </View>
         </View>
-
-        {/* Game Features */}
-        <View style={styles.featuresSection}>
-          <Text style={styles.featuresTitle}>Game Features</Text>
-          <View style={styles.featuresGrid}>
-            <Card variant="gradient" style={styles.featureCard}>
-              <Users size={24} color="#8B5CF6" />
-              <Text style={styles.featureTitle}>3-20 Players</Text>
-              <Text style={styles.featureDescription}>Perfect for any group size</Text>
-            </Card>
-            
-            <Card variant="gradient" style={styles.featureCard}>
-              <Star size={24} color="#F59E0B" />
-              <Text style={styles.featureTitle}>Pass & Play</Text>
-              <Text style={styles.featureDescription}>One device for everyone</Text>
-            </Card>
-            
-            <Card variant="gradient" style={styles.featureCard}>
-              <Zap size={24} color="#10B981" />
-              <Text style={styles.featureTitle}>Special Roles</Text>
-              <Text style={styles.featureDescription}>Add chaos and strategy</Text>
-            </Card>
-          </View>
-        </View>
-
-        {/* How to Play */}
-        <Card variant="glass" style={styles.howToPlayCard}>
-          <Text style={styles.howToPlayTitle}>How to Play</Text>
-          <Text style={styles.howToPlayText}>
-            Get secret words, describe them cleverly without saying them directly. 
-            Discuss suspicions, vote to eliminate impostors, and discover who's the undercover agent!
-          </Text>
-          <View style={styles.gameSteps}>
-            <View style={styles.step}>
-              <Badge variant="primary">1</Badge>
-              <Text style={styles.stepText}>Get your secret word</Text>
-            </View>
-            <View style={styles.step}>
-              <Badge variant="primary">2</Badge>
-              <Text style={styles.stepText}>Describe without revealing</Text>
-            </View>
-            <View style={styles.step}>
-              <Badge variant="primary">3</Badge>
-              <Text style={styles.stepText}>Vote to eliminate suspects</Text>
-            </View>
-          </View>
-        </Card>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -150,134 +209,183 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  particlesContainer: {
+  backgroundElements: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   },
-  particle: {
+  floatingElement: {
     position: 'absolute',
-    width: 4,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 2,
+    width: 6,
+    height: 6,
+    backgroundColor: 'rgba(102, 126, 234, 0.3)',
+    borderRadius: 3,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   content: {
-    flex: 1,
-    padding: 20,
+    padding: 24,
     paddingTop: 60,
   },
-  header: {
+  heroSection: {
     marginBottom: 32,
   },
-  titleCard: {
+  heroCard: {
     alignItems: 'center',
-    paddingVertical: 24,
+    paddingVertical: 32,
   },
-  titleContainer: {
-    flexDirection: 'row',
+  heroContent: {
     alignItems: 'center',
-    gap: 16,
-    marginBottom: 16,
+    gap: 20,
   },
   gameIcon: {
-    fontSize: 48,
+    fontSize: 64,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+    letterSpacing: 2,
   },
   subtitle: {
     fontSize: 16,
-    color: '#D1D5DB',
+    color: '#A0AEC0',
     fontStyle: 'italic',
+    textAlign: 'center',
   },
-  statusContainer: {
+  statsSection: {
+    marginBottom: 32,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  statCard: {
+    flex: 1,
     alignItems: 'center',
+    padding: 20,
+    gap: 8,
   },
-  statusText: {
+  statNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  statLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    color: '#718096',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   actionSection: {
-    marginBottom: 32,
-    gap: 16,
+    marginBottom: 40,
+    gap: 20,
   },
   primaryButton: {
     marginBottom: 8,
   },
   secondaryActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
   secondaryButton: {
     flex: 1,
   },
   featuresSection: {
-    marginBottom: 32,
+    marginBottom: 40,
   },
-  featuresTitle: {
-    fontSize: 20,
+  sectionTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 16,
+    marginBottom: 24,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   featuresGrid: {
-    flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
   featureCard: {
-    flex: 1,
     alignItems: 'center',
-    padding: 16,
-    gap: 8,
+    padding: 24,
+    gap: 16,
   },
   featureTitle: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
   },
   featureDescription: {
-    fontSize: 12,
-    color: '#D1D5DB',
+    fontSize: 14,
+    color: '#A0AEC0',
     textAlign: 'center',
+    lineHeight: 20,
   },
   howToPlayCard: {
-    padding: 24,
+    padding: 32,
+    marginBottom: 40,
   },
   howToPlayTitle: {
-    fontSize: 18,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 16,
     textAlign: 'center',
   },
-  howToPlayText: {
-    fontSize: 14,
-    color: '#D1D5DB',
-    lineHeight: 20,
+  howToPlayDescription: {
+    fontSize: 16,
+    color: '#E2E8F0',
+    lineHeight: 24,
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 32,
   },
   gameSteps: {
-    gap: 12,
+    gap: 24,
   },
   step: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    alignItems: 'flex-start',
+    gap: 16,
   },
-  stepText: {
-    fontSize: 14,
-    color: '#F3F4F6',
+  stepContent: {
     flex: 1,
+    gap: 8,
+  },
+  stepTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  stepDescription: {
+    fontSize: 14,
+    color: '#CBD5E0',
+    lineHeight: 20,
+  },
+  ctaSection: {
+    alignItems: 'center',
+    gap: 20,
+    paddingBottom: 40,
+  },
+  ctaTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
