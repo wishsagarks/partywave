@@ -64,7 +64,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
       ...baseStyle,
       backgroundColor: 'rgba(15, 15, 35, 0.9)',
       borderWidth: 2,
-      borderColor: error ? '#ff6b6b' : (isFocused ? '#667eea' : 'rgba(102, 126, 234, 0.4)',
+      borderColor: error ? '#ff6b6b' : (isFocused ? '#667eea' : 'rgba(102, 126, 234, 0.4)'),
     };
   };
 
@@ -86,6 +86,7 @@ export const ModernInput: React.FC<ModernInputProps> = ({
           ]}
           placeholderTextColor="#4a5568"
           onFocus={handleFocus}
+          onBlur={handleBlur}
           {...props}
         />
         {isFocused && variant !== 'minimal' && (

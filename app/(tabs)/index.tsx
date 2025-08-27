@@ -1,24 +1,30 @@
 import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Play, Trophy, Users, Zap, Star, Crown, Shield, Target } from 'lucide-react-native';
-import { ModernCard } from '@/components/ui/modern-card';
-import { ModernButton } from '@/components/ui/modern-button';
-import { ModernBadge } from '@/components/ui/modern-badge';
+import { Play, Trophy, Users, Zap, Star, Crown, Shield, Target, Settings } from 'lucide-react-native';
+import { AceternityCard } from '@/components/ui/aceternity-card';
+import { AceternityButton } from '@/components/ui/aceternity-button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { useTheme } from '@/hooks/useTheme';
 
 const { width, height } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  const { theme, colors } = useTheme();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={['#0f0f23', '#1a1a2e', '#16213e', '#0f3460']}
+        colors={theme === 'dark' 
+          ? ['#0F172A', '#1E293B', '#334155', '#475569']
+          : ['#F8FAFC', '#F1F5F9', '#E2E8F0', '#CBD5E1']
+        }
         style={styles.backgroundGradient}
       />
       
       {/* Animated background elements */}
       <View style={styles.backgroundElements}>
-        {[...Array(15)].map((_, i) => (
+        {[...Array(20)].map((_, i) => (
           <View
             key={i}
             style={[
@@ -26,171 +32,191 @@ export default function HomeScreen() {
               {
                 left: Math.random() * width,
                 top: Math.random() * height,
-                animationDelay: `${Math.random() * 5}s`,
+                backgroundColor: theme === 'dark' 
+                  ? 'rgba(96, 165, 250, 0.3)' 
+                  : 'rgba(59, 130, 246, 0.2)',
               },
             ]}
           />
         ))}
       </View>
 
+      {/* Header with Theme Toggle */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>UNDERCOVER</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Social Deduction Game</Text>
+        </View>
+        <ThemeToggle />
+      </View>
+
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
           {/* Hero Section */}
           <View style={styles.heroSection}>
-            <ModernCard variant="glass" style={styles.heroCard}>
+            <AceternityCard variant="glass" style={styles.heroCard}>
               <View style={styles.heroContent}>
                 <Text style={styles.gameIcon}>🎭</Text>
                 <View style={styles.titleContainer}>
-                  <Text style={styles.title}>UNDERCOVER</Text>
-                  <Text style={styles.subtitle}>Social Deduction Masterpiece</Text>
+                  <Text style={[styles.title, { color: colors.text }]}>Ready to Play?</Text>
+                  <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                    Master the art of deception in this thrilling social game
+                  </Text>
                 </View>
-                <ModernBadge variant="success" gradient size="md">
-                  🟢 Ready to Play
-                </ModernBadge>
+                <View style={styles.statusBadge}>
+                  <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                  <Text style={[styles.statusText, { color: colors.success }]}>Online & Ready</Text>
+                </View>
               </View>
-            </ModernCard>
+            </AceternityCard>
           </View>
 
           {/* Quick Stats */}
           <View style={styles.statsSection}>
             <View style={styles.statsGrid}>
-              <ModernCard variant="elevated" style={styles.statCard}>
-                <Users size={24} color="#667eea" />
-                <Text style={styles.statNumber}>3-20</Text>
-                <Text style={styles.statLabel}>Players</Text>
-              </ModernCard>
+              <AceternityCard variant="spotlight" style={styles.statCard}>
+                <Users size={24} color={colors.primary} />
+                <Text style={[styles.statNumber, { color: colors.text }]}>3-20</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Players</Text>
+              </AceternityCard>
               
-              <ModernCard variant="elevated" style={styles.statCard}>
-                <Target size={24} color="#38a169" />
-                <Text style={styles.statNumber}>5-15</Text>
-                <Text style={styles.statLabel}>Minutes</Text>
-              </ModernCard>
+              <AceternityCard variant="spotlight" style={styles.statCard}>
+                <Target size={24} color={colors.success} />
+                <Text style={[styles.statNumber, { color: colors.text }]}>5-15</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Minutes</Text>
+              </AceternityCard>
               
-              <ModernCard variant="elevated" style={styles.statCard}>
-                <Crown size={24} color="#d69e2e" />
-                <Text style={styles.statNumber}>∞</Text>
-                <Text style={styles.statLabel}>Rounds</Text>
-              </ModernCard>
+              <AceternityCard variant="spotlight" style={styles.statCard}>
+                <Crown size={24} color={colors.warning} />
+                <Text style={[styles.statNumber, { color: colors.text }]}>∞</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rounds</Text>
+              </AceternityCard>
             </View>
           </View>
 
           {/* Main Actions */}
           <View style={styles.actionSection}>
-            <ModernButton
-              variant="primary"
+            <AceternityButton
+              variant="shimmer"
               size="xl"
               onPress={() => router.push('/game')}
               style={styles.primaryButton}
               icon={<Play size={24} color="white" />}
             >
               Start New Game
-            </ModernButton>
+            </AceternityButton>
 
             <View style={styles.secondaryActions}>
-              <ModernButton
-                variant="secondary"
+              <AceternityButton
+                variant="glow"
                 size="lg"
                 onPress={() => router.push('/leaderboard')}
                 style={styles.secondaryButton}
-                icon={<Trophy size={20} color="#d69e2e" />}
+                icon={<Trophy size={20} color="white" />}
               >
                 Leaderboard
-              </ModernButton>
+              </AceternityButton>
               
-              <ModernButton
-                variant="ghost"
+              <AceternityButton
+                variant="outline"
                 size="lg"
                 onPress={() => router.push('/word-libraries')}
                 style={styles.secondaryButton}
-                icon={<Zap size={20} color="#667eea" />}
+                icon={<Zap size={20} color={colors.primary} />}
               >
                 Word Packs
-              </ModernButton>
+              </AceternityButton>
             </View>
           </View>
 
           {/* Game Features */}
           <View style={styles.featuresSection}>
-            <Text style={styles.sectionTitle}>Why You'll Love It</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Why You'll Love It</Text>
             <View style={styles.featuresGrid}>
-              <ModernCard variant="glass" style={styles.featureCard}>
-                <Shield size={28} color="#667eea" />
-                <Text style={styles.featureTitle}>Pass & Play</Text>
-                <Text style={styles.featureDescription}>
+              <AceternityCard variant="border" style={styles.featureCard}>
+                <Shield size={28} color={colors.primary} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>Pass & Play</Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
                   One device for everyone. No downloads required.
                 </Text>
-              </ModernCard>
+              </AceternityCard>
               
-              <ModernCard variant="glass" style={styles.featureCard}>
-                <Star size={28} color="#38a169" />
-                <Text style={styles.featureTitle}>Special Roles</Text>
-                <Text style={styles.featureDescription}>
+              <AceternityCard variant="border" style={styles.featureCard}>
+                <Star size={28} color={colors.success} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>Special Roles</Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
                   Add chaos with unique abilities and powers.
                 </Text>
-              </ModernCard>
+              </AceternityCard>
               
-              <ModernCard variant="glass" style={styles.featureCard}>
-                <Target size={28} color="#e53e3e" />
-                <Text style={styles.featureTitle}>Mind Games</Text>
-                <Text style={styles.featureDescription}>
+              <AceternityCard variant="border" style={styles.featureCard}>
+                <Target size={28} color={colors.error} />
+                <Text style={[styles.featureTitle, { color: colors.text }]}>Mind Games</Text>
+                <Text style={[styles.featureDescription, { color: colors.textSecondary }]}>
                   Bluff, deduce, and outsmart your friends.
                 </Text>
-              </ModernCard>
+              </AceternityCard>
             </View>
           </View>
 
           {/* How to Play */}
-          <ModernCard variant="gradient" style={styles.howToPlayCard}>
-            <Text style={styles.howToPlayTitle}>How to Play</Text>
-            <Text style={styles.howToPlayDescription}>
+          <AceternityCard variant="gradient" style={styles.howToPlayCard}>
+            <Text style={[styles.howToPlayTitle, { color: colors.text }]}>How to Play</Text>
+            <Text style={[styles.howToPlayDescription, { color: colors.textSecondary }]}>
               Master the art of deception in this thrilling social game where words are weapons 
               and trust is a luxury you can't afford.
             </Text>
             
             <View style={styles.gameSteps}>
               <View style={styles.step}>
-                <ModernBadge variant="primary" gradient size="lg">1</ModernBadge>
+                <View style={[styles.stepBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.stepNumber}>1</Text>
+                </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Get Your Secret Word</Text>
-                  <Text style={styles.stepDescription}>
+                  <Text style={[styles.stepTitle, { color: colors.text }]}>Get Your Secret Word</Text>
+                  <Text style={[styles.stepDescription, { color: colors.textSecondary }]}>
                     Receive your hidden word - but beware, some players have different words!
                   </Text>
                 </View>
               </View>
               
               <View style={styles.step}>
-                <ModernBadge variant="warning" gradient size="lg">2</ModernBadge>
+                <View style={[styles.stepBadge, { backgroundColor: colors.warning }]}>
+                  <Text style={styles.stepNumber}>2</Text>
+                </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Describe Cleverly</Text>
-                  <Text style={styles.stepDescription}>
+                  <Text style={[styles.stepTitle, { color: colors.text }]}>Describe Cleverly</Text>
+                  <Text style={[styles.stepDescription, { color: colors.textSecondary }]}>
                     Give clues without revealing your word. Stay subtle, stay alive.
                   </Text>
                 </View>
               </View>
               
               <View style={styles.step}>
-                <ModernBadge variant="destructive" gradient size="lg">3</ModernBadge>
+                <View style={[styles.stepBadge, { backgroundColor: colors.error }]}>
+                  <Text style={styles.stepNumber}>3</Text>
+                </View>
                 <View style={styles.stepContent}>
-                  <Text style={styles.stepTitle}>Vote & Eliminate</Text>
-                  <Text style={styles.stepDescription}>
+                  <Text style={[styles.stepTitle, { color: colors.text }]}>Vote & Eliminate</Text>
+                  <Text style={[styles.stepDescription, { color: colors.textSecondary }]}>
                     Discuss suspicions and vote out the impostors hiding among you.
                   </Text>
                 </View>
               </View>
             </View>
-          </ModernCard>
+          </AceternityCard>
 
           {/* Call to Action */}
           <View style={styles.ctaSection}>
-            <Text style={styles.ctaTitle}>Ready for the Ultimate Mind Game?</Text>
-            <ModernButton
-              variant="success"
+            <Text style={[styles.ctaTitle, { color: colors.text }]}>Ready for the Ultimate Mind Game?</Text>
+            <AceternityButton
+              variant="glow"
               size="xl"
               onPress={() => router.push('/game')}
               icon={<Play size={24} color="white" />}
             >
               Start Playing Now
-            </ModernButton>
+            </AceternityButton>
           </View>
         </View>
       </ScrollView>
@@ -218,17 +244,35 @@ const styles = StyleSheet.create({
   },
   floatingElement: {
     position: 'absolute',
-    width: 6,
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 3,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   scrollContainer: {
     flex: 1,
   },
   content: {
     padding: 24,
-    paddingTop: 60,
   },
   heroSection: {
     marginBottom: 32,
@@ -249,19 +293,32 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 36,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    letterSpacing: 2,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
-    color: '#A0AEC0',
-    fontStyle: 'italic',
     textAlign: 'center',
+    lineHeight: 22,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   statsSection: {
     marginBottom: 32,
@@ -279,11 +336,9 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   statLabel: {
     fontSize: 12,
-    color: '#718096',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -307,12 +362,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     marginBottom: 24,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
   featuresGrid: {
     gap: 16,
@@ -325,12 +376,10 @@ const styles = StyleSheet.create({
   featureTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     textAlign: 'center',
   },
   featureDescription: {
     fontSize: 14,
-    color: '#A0AEC0',
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -341,13 +390,11 @@ const styles = StyleSheet.create({
   howToPlayTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     marginBottom: 16,
     textAlign: 'center',
   },
   howToPlayDescription: {
     fontSize: 16,
-    color: '#E2E8F0',
     lineHeight: 24,
     textAlign: 'center',
     marginBottom: 32,
@@ -360,6 +407,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 16,
   },
+  stepBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNumber: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   stepContent: {
     flex: 1,
     gap: 8,
@@ -367,11 +426,9 @@ const styles = StyleSheet.create({
   stepTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   stepDescription: {
     fontSize: 14,
-    color: '#CBD5E0',
     lineHeight: 20,
   },
   ctaSection: {
@@ -382,10 +439,6 @@ const styles = StyleSheet.create({
   ctaTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
   },
 });

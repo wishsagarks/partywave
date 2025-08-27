@@ -1,17 +1,17 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useState, useEffect } from 'react';
 import { Plus, Minus, Play, ArrowLeft, Users, X, Settings, ToggleLeft, ToggleRight, Crown, Zap } from 'lucide-react-native';
 import { router } from 'expo-router';
 import { GameService } from '@/services/gameService';
 import { useLeaderboard } from '@/hooks/useGameData';
 import { SpecialRole } from '@/types/game';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
+import { AceternityCard } from '@/components/ui/aceternity-card';
+import { AceternityButton } from '@/components/ui/aceternity-button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { useTheme } from '@/hooks/useTheme';
 
 export default function GameSetupScreen() {
+  const { theme, colors } = useTheme();
   const { topPlayers, loading: leaderboardLoading } = useLeaderboard();
   const [playerCount, setPlayerCount] = useState(6);
   const [gameName, setGameName] = useState('');
@@ -148,52 +148,101 @@ export default function GameSetupScreen() {
   const roles = customRoles || GameService.getRoleDistribution(playerCount);
 
   return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#0a0a1a', '#0f0f23', '#1a1a2e', '#16213e']}
-        style={styles.backgroundGradient}
-      />
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
 
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#FFFFFF" />
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Game Setup</Text>
-        <View style={{ width: 40 }} />
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Game Setup</Text>
+        <ThemeToggle />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Leaderboard Preview */}
-        <Card variant="glass" style={styles.section}>
+        <AceternityCard variant="glass" style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Crown size={20} color="#F59E0B" />
-            <Text style={styles.sectionTitle}>Top Players</Text>
+            <Crown size={20} color={colors.warning} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Top Players</Text>
           </View>
           {leaderboardLoading ? (
-            <Text style={styles.loadingText}>Loading...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading...</Text>
           ) : (
             <View style={styles.leaderboardPreview}>
               {topPlayers.slice(0, 3).map((player, index) => (
                 <View key={player.id} style={styles.leaderboardItem}>
-                  <Badge variant={index === 0 ? 'warning' : index === 1 ? 'secondary' : 'default'}>
-                    #{index + 1}
-                  </Badge>
-                  <Text style={styles.leaderboardName}>{player.name}</Text>
-                  <Text style={styles.leaderboardPoints}>{player.total_points}pts</Text>
+                  <View style={[
+                    styles.rankBadge,
+                    { backgroundColor: index === 0 ? colors.warning : index === 1 ? colors.info : colors.textSecondary }
+                  ]}>
+                    <Text style={styles.rankText}>#{index + 1}</Text>
+                  </View>
+                  <Text style={[styles.leaderboardName, { color: colors.text }]}>{player.name}</Text>
+                  <Text style={[styles.leaderboardPoints, { color: colors.primary }]}>{player.total_points}pts</Text>
                 </View>
               ))}
               {topPlayers.length === 0 && (
-                <Text style={styles.noPlayersText}>No games played yet</Text>
+                <Text style={[styles.noPlayersText, { color: colors.textSecondary }]}>No games played yet</Text>
               )}
             </View>
           )}
-        </Card>
+        </AceternityCard>
 
         {/* Game Name */}
-        <Card variant="glass" style={styles.section}>
-          <Text style={styles.sectionTitle}>Game Session Name</Text>
-          <Input
+        <AceternityCard variant="spotlight" style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Game Session Name</Text>
+          <View style={styles.inputContainer}>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Session Name</Text>
+            <View style={[styles.textInput, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text
+                style={[styles.textInputText, { color: colors.text }]}
+                onPress={() => {
+                  // Handle text input - you might want to use a proper TextInput here
+                }}
+              >
+                {gameName || 'Enter game session name'}
+              </Text>
+            </View>
+          </View>
+        </AceternityCard>
+
+        {/* Player Count */}
+        <AceternityCard variant="border" style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Players</Text>
+          <View style={styles.playerCountContainer}>
+            <TouchableOpacity 
+              style={[styles.countButton, { backgroundColor: colors.primary }]}
+              onPress={() => updatePlayerCount(playerCount - 1)}
+            >
+              <Minus size={20} color="white" />
+            </TouchableOpacity>
+            
+            <View style={styles.playerCountDisplay}>
+              <Text style={[styles.playerCountText, { color: colors.text }]}>{playerCount}</Text>
+              <Text style={[styles.playerCountLabel, { color: colors.textSecondary }]}>Players</Text>
+            </View>
+            
+            <TouchableOpacity 
+              style={[styles.countButton, { backgroundColor: colors.primary }]}
+              onPress={() => updatePlayerCount(playerCount + 1)}
+            >
+              <Plus size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Game Info */}
+          <View style={styles.gameInfoRow}>
+            <View style={styles.gameInfoItem}>
+              <Text style={[styles.gameInfoLabel, { color: colors.textSecondary }]}>Duration</Text>
+              <Text style={[styles.gameInfoValue, { color: colors.accent }]}>{Math.ceil(playerCount * 2)}-{Math.ceil(playerCount * 3)}min</Text>
+            </View>
+            <View style={styles.gameInfoItem}>
+              <Text style={[styles.gameInfoLabel, { color: colors.textSecondary }]}>Rounds</Text>
+              <Text style={[styles.gameInfoValue, { color: colors.accent }]}>{Math.ceil(playerCount * 0.6)}-{playerCount - 1}</Text>
+            </View>
+          </View>
+        </AceternityCard>
             value={gameName}
             onChangeText={setGameName}
             placeholder="Enter game session name (e.g., 'Friday Night Game')"
@@ -329,16 +378,17 @@ export default function GameSetupScreen() {
 
       {/* Start Button */}
       <View style={styles.startButtonContainer}>
-        <Button
-          variant="primary"
+        <AceternityButton
+          variant="shimmer"
           size="lg"
           onPress={startGameSetup}
           disabled={isCreatingGame}
+          loading={isCreatingGame}
           icon={<Play size={20} color="white" />}
           style={styles.startButton}
         >
           {isCreatingGame ? 'Creating Game...' : 'Setup Players'}
-        </Button>
+        </AceternityButton>
       </View>
 
       {/* Player Names Modal */}
@@ -456,13 +506,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  backgroundGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -474,14 +517,12 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   content: {
     flex: 1,
@@ -500,7 +541,62 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#FFFFFF',
+  },
+  inputContainer: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+  },
+  textInputText: {
+    fontSize: 16,
+  },
+  playerCountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 32,
+    marginBottom: 24,
+  },
+  countButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerCountDisplay: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  playerCountText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+  },
+  playerCountLabel: {
+    fontSize: 14,
+  },
+  gameInfoRow: {
+    flexDirection: 'row',
+    gap: 24,
+    justifyContent: 'center',
+  },
+  gameInfoItem: {
+    alignItems: 'center',
+    gap: 4,
+  },
+  gameInfoLabel: {
+    fontSize: 12,
+  },
+  gameInfoValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   sectionDescription: {
     fontSize: 14,
@@ -616,6 +712,16 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 8,
   },
+  rankBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  rankText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
   leaderboardName: {
     flex: 1,
     fontSize: 14,
@@ -689,23 +795,19 @@ const styles = StyleSheet.create({
   },
   selectedSpecialRoleCard: {
     borderColor: '#8B5CF6',
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
   },
   specialRoleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
     gap: 12,
   },
   specialRoleEmoji: {
     fontSize: 20,
-  },
   specialRoleName: {
     flex: 1,
     fontSize: 16,
     fontWeight: 'bold',
     color: '#F3F4F6',
-  },
   specialRoleToggle: {
     padding: 4,
   },
