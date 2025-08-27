@@ -1,101 +1,128 @@
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Play, Users, Trophy, WifiOff } from 'lucide-react-native';
+import { GlassCard } from '@/components/ui/GlassCard';
+import { GlassButton } from '@/components/ui/GlassButton';
+
+const { width, height } = Dimensions.get('window');
 
 export default function HomeScreen() {
   return (
-    <LinearGradient
-      colors={['#1F2937', '#111827']}
-      style={styles.container}
-    >
-      <View style={styles.header}>
-        <Text style={styles.title}>🎭 UNDERCOVER</Text>
-        <Text style={styles.subtitle}>Word Party Game</Text>
-        <View style={styles.offlineIndicator}>
-          <WifiOff size={16} color="#10B981" />
-          <Text style={styles.offlineText}>Offline Mode</Text>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#0F0C29', '#24243e', '#302B63']}
+        style={styles.backgroundGradient}
+      />
+      <BlurView intensity={5} tint="dark" style={styles.backgroundBlur}>
+        <View style={styles.header}>
+          <GlassCard style={styles.titleCard} intensity={15}>
+            <Text style={styles.title}>🎭 UNDERCOVER</Text>
+            <Text style={styles.subtitle}>Word Party Game</Text>
+          </GlassCard>
+          
+          <GlassCard style={styles.statusCard} intensity={10}>
+            <WifiOff size={16} color="#10B981" />
+            <Text style={styles.offlineText}>Offline Mode</Text>
+          </GlassCard>
         </View>
-      </View>
 
-      <View style={styles.menuContainer}>
-        <TouchableOpacity 
-          style={[styles.menuButton, styles.primaryButton]}
-          onPress={() => router.push('/game')}
-        >
-          <LinearGradient
-            colors={['#8B5CF6', '#7C3AED']}
-            style={styles.buttonGradient}
-          >
-            <Play size={24} color="white" />
-            <Text style={styles.primaryButtonText}>Start New Game</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+        <View style={styles.menuContainer}>
+          <GlassButton
+            title="Start New Game"
+            onPress={() => router.push('/game')}
+            variant="primary"
+            size="large"
+            icon={<Play size={24} color="white" />}
+            style={styles.primaryButton}
+          />
 
-        <TouchableOpacity 
-          style={styles.menuButton}
-          onPress={() => router.push('/leaderboard')}
-        >
-          <Trophy size={20} color="#F59E0B" />
-          <Text style={styles.buttonText}>Leaderboard</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.gameInfo}>
-        <View style={styles.infoCard}>
-          <Users size={16} color="#8B5CF6" />
-          <Text style={styles.infoText}>3-20 Players</Text>
+          <GlassButton
+            title="Leaderboard"
+            onPress={() => router.push('/leaderboard')}
+            variant="secondary"
+            size="medium"
+            icon={<Trophy size={20} color="#F59E0B" />}
+            style={styles.secondaryButton}
+          />
         </View>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoEmoji}>🔄</Text>
-          <Text style={styles.infoText}>Pass & Play</Text>
-        </View>
-        <View style={styles.infoCard}>
-          <Text style={styles.infoEmoji}>🕵️</Text>
-          <Text style={styles.infoText}>Social Deduction</Text>
-        </View>
-      </View>
 
-      <Text style={styles.howToPlay}>
-        Get secret words, describe them cleverly, discuss suspicions, vote to eliminate impostors!
-      </Text>
-    </LinearGradient>
+        <View style={styles.gameInfo}>
+          <GlassCard style={styles.infoCard} intensity={12}>
+            <Users size={16} color="#8B5CF6" />
+            <Text style={styles.infoText}>3-20 Players</Text>
+          </GlassCard>
+          <GlassCard style={styles.infoCard} intensity={12}>
+            <Text style={styles.infoEmoji}>🔄</Text>
+            <Text style={styles.infoText}>Pass & Play</Text>
+          </GlassCard>
+          <GlassCard style={styles.infoCard} intensity={12}>
+            <Text style={styles.infoEmoji}>🕵️</Text>
+            <Text style={styles.infoText}>Social Deduction</Text>
+          </GlassCard>
+        </View>
+
+        <GlassCard style={styles.descriptionCard} intensity={8}>
+          <Text style={styles.howToPlay}>
+            Get secret words, describe them cleverly, discuss suspicions, vote to eliminate impostors!
+          </Text>
+        </GlassCard>
+      </BlurView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    position: 'relative',
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  backgroundBlur: {
+    flex: 1,
     padding: 20,
     paddingTop: 60,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 40,
+    gap: 16,
   },
+  titleCard: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    paddingHorizontal: 32,
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: 'bold',
     color: '#F3F4F6',
-    marginBottom: 8,
+    marginBottom: 4,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#9CA3AF',
+    fontSize: 16,
+    color: '#D1D5DB',
     fontStyle: 'italic',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  offlineIndicator: {
+  statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#10B981',
+    paddingVertical: 8,
   },
   offlineText: {
     fontSize: 12,
@@ -104,56 +131,27 @@ const styles = StyleSheet.create({
   },
   menuContainer: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 40,
     gap: 16,
   },
-  menuButton: {
-    backgroundColor: '#374151',
-    padding: 16,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#4B5563',
-  },
   primaryButton: {
-    padding: 0,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
+    marginBottom: 8,
   },
-  buttonGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    padding: 20,
-    borderRadius: 12,
-  },
-  primaryButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  buttonText: {
-    color: '#F3F4F6',
-    fontSize: 16,
-    fontWeight: '600',
+  secondaryButton: {
+    // Additional styling if needed
   },
   gameInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 40,
+    marginTop: 32,
     marginBottom: 20,
+    gap: 8,
   },
   infoCard: {
     flex: 1,
-    backgroundColor: '#374151',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
     alignItems: 'center',
-    marginHorizontal: 4,
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 6,
@@ -163,20 +161,24 @@ const styles = StyleSheet.create({
   },
   infoText: {
     color: '#D1D5DB',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '500',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
+  descriptionCard: {
+    marginTop: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
   },
   howToPlay: {
     textAlign: 'center',
-    color: '#9CA3AF',
+    color: '#D1D5DB',
     fontSize: 14,
     lineHeight: 20,
-    marginBottom: 20,
-  },
-  loadingText: {
-    textAlign: 'center',
-    color: '#6B7280',
-    fontSize: 12,
-    fontStyle: 'italic',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });
