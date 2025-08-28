@@ -1,390 +1,40 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal, Alert, TextInput } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useState, useEffect } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward } from 'lucide-react-native';
 import { GameService } from '@/services/gameService';
-import { Player, WordPair, GamePhase } from '@/types/game';
+import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward, Zap, Vote, Clock } from 'lucide-react-native';
+import { useGameFlowManager } from '@/hooks/useGameFlowManager';
+import { ModernCard } from '@/components/ui/modern-card';
+import { ModernButton } from '@/components/ui/modern-button';
+import { ModernInput } from '@/components/ui/modern-input';
+import { ModernBadge } from '@/components/ui/modern-badge';
 
 export default function GameFlow() {
-  const { gameId, playerCount, playerNames, playerIds, customRoles } = useLocalSearchParams();
-  
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [currentPhase, setCurrentPhase] = useState<GamePhase>('word-distribution');
-  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
-  const [currentRound, setCurrentRound] = useState(1);
-  const [currentDescriptionIndex, setCurrentDescriptionIndex] = useState(0);
-  const [wordRevealed, setWordRevealed] = useState(false);
-  const [votingResults, setVotingResults] = useState<{[key: string]: number}>({});
-  const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
-  const [gameWinner, setGameWinner] = useState<string>('');
-  const [wordPair, setWordPair] = useState<WordPair | null>(null);
-  const [startTime] = useState(new Date());
-  const [mrWhiteGuess, setMrWhiteGuess] = useState('');
-  const [showMrWhiteGuess, setShowMrWhiteGuess] = useState(false);
-  const [discussionTimer, setDiscussionTimer] = useState(0);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [currentVoterIndex, setCurrentVoterIndex] = useState(0);
-  const [individualVotes, setIndividualVotes] = useState<{[voterId: string]: string}>({});
-  const [showRoundLeaderboard, setShowRoundLeaderboard] = useState(false);
-  const [roundLeaderboard, setRoundLeaderboard] = useState<Player[]>([]);
-  const [descriptionOrder, setDescriptionOrder] = useState<Player[]>([]);
-  const [isProcessingVotes, setIsProcessingVotes] = useState(false);
-  
+  const params = useLocalSearchParams();
+  const [gameState, gameActions] = useGameFlowManager();
+
+  const {
+    players,
+    currentPhase,
+    currentRound,
+    wordPair,
+    gameWinner,
+    eliminatedPlayer,
+    eliminationHistory,
+    votingResults,
+    individualVotes,
+    currentVoterIndex,
+    isProcessingVotes,
+    guessInput,
+  } = gameState;
+
+  // Initialize game on mount
   useEffect(() => {
-    let isMounted = true;
-    
-    const initializeGameSafe = async () => {
-      try {
-        const selectedWordPair = await GameService.getRandomWordPair();
-        if (!isMounted) return;
-        
-        if (!selectedWordPair) {
-          Alert.alert('Error', 'No active word libraries found. Please enable some word libraries in settings.');
-          if (isMounted) {
-            router.back();
-          }
-          return;
-        }
-        
-        if (isMounted) {
-          setWordPair(selectedWordPair);
-        }
-        
-        const names = JSON.parse(playerNames as string);
-        const ids = JSON.parse(playerIds as string);
-        const roles = customRoles ? JSON.parse(customRoles as string) : undefined;
-        
-        const assignedPlayers = GameService.assignRoles(names, selectedWordPair, ids, roles);
-        if (isMounted) {
-          setPlayers(assignedPlayers);
-        }
-        
-      } catch (error) {
-        if (isMounted) {
-          Alert.alert('Error', 'Failed to initialize game. Please try again.');
-          console.error('Game initialization error:', error);
-          router.back();
-        }
-      }
-    };
-    
-    initializeGameSafe();
-    
-    return () => {
-      isMounted = false;
-    };
+    gameActions.initializeGame(params);
   }, []);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isTimerRunning && discussionTimer > 0) {
-      interval = setInterval(() => {
-        setDiscussionTimer(prev => {
-          if (prev <= 1) {
-            setIsTimerRunning(false);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isTimerRunning, discussionTimer]);
-
-  const generateDescriptionOrder = (alivePlayers: Player[]) => {
-    const shuffled = [...alivePlayers];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  };
-
-  const saveGameRound = async (eliminatedPlayerId: string, voteResults: {[key: string]: number}, mrWhiteGuess?: string, mrWhiteGuessCorrect?: boolean) => {
-    try {
-      await GameService.saveGameRound(
-        gameId as string,
-        currentRound,
-        eliminatedPlayerId,
-        voteResults,
-        mrWhiteGuess,
-        mrWhiteGuessCorrect
-      );
-    } catch (error) {
-      console.error('Error saving game round:', error);
-    }
-  };
-
-  const saveGameResult = async (winner: string, finalPlayers: Player[]) => {
-    try {
-      const duration = Math.round((new Date().getTime() - startTime.getTime()) / 60000);
-      const playerIdsArray = JSON.parse(playerIds as string);
-      
-      const gameResult = {
-        winner,
-        players: finalPlayers.map(p => ({
-          name: p.name,
-          role: p.role,
-          word: p.word,
-          points: p.points,
-          wasWinner: (winner === 'Civilians' && p.role === 'civilian') ||
-                    (winner === 'Undercover' && p.role === 'undercover') ||
-                    (winner === 'Mr. White' && p.role === 'mrwhite') ||
-                    (winner === 'Impostors' && (p.role === 'undercover' || p.role === 'mrwhite')),
-        })),
-        totalRounds: currentRound,
-        duration,
-      };
-      
-      if (wordPair) {
-        await GameService.saveGameResult(gameId as string, gameResult, wordPair, playerIdsArray);
-      }
-    } catch (error) {
-      console.error('Error saving game result:', error);
-    }
-  };
-
-  const resetVotingState = () => {
-    setVotingResults({});
-    setCurrentVoterIndex(0);
-    setIndividualVotes({});
-    setIsProcessingVotes(false);
-  };
-
-  const handleMrWhiteElimination = async (player: Player) => {
-    console.log('Mr. White eliminated:', player.name);
-    setEliminatedPlayer(player);
-    
-    // Save round data first
-    await saveGameRound(player.id, votingResults);
-    
-    // Show Mr. White guess screen
-    setShowMrWhiteGuess(true);
-    setCurrentPhase('mr-white-guess');
-  };
-
-  const submitMrWhiteGuess = async () => {
-    if (!eliminatedPlayer || !wordPair) return;
-    
-    const isCorrect = mrWhiteGuess.toLowerCase().trim() === wordPair.civilian_word.toLowerCase().trim();
-    
-    // Update round data with guess
-    await saveGameRound(eliminatedPlayer.id, votingResults, mrWhiteGuess, isCorrect);
-    
-    if (isCorrect) {
-      // Mr. White wins!
-      const finalPlayers = GameService.calculatePoints(players, 'Mr. White');
-      setPlayers(finalPlayers);
-      setGameWinner('Mr. White');
-      await saveGameResult('Mr. White', finalPlayers);
-      setCurrentPhase('final-results');
-    } else {
-      // Mr. White guessed wrong - Civilians win!
-      const newPlayers = players.map(p => 
-        p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
-      );
-      const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
-      setPlayers(finalPlayers);
-      setGameWinner('Civilians');
-      await saveGameResult('Civilians', finalPlayers);
-      setCurrentPhase('final-results');
-    }
-    
-    setShowMrWhiteGuess(false);
-    setMrWhiteGuess('');
-  };
-
-  const skipMrWhiteGuess = async () => {
-    if (!eliminatedPlayer) return;
-    
-    // Mr. White skipped guess - Civilians win!
-    const newPlayers = players.map(p => 
-      p.id === eliminatedPlayer.id ? { ...p, isAlive: false, eliminationRound: currentRound } : p
-    );
-    const finalPlayers = GameService.calculatePoints(newPlayers, 'Civilians');
-    setPlayers(finalPlayers);
-    setGameWinner('Civilians');
-    await saveGameResult('Civilians', finalPlayers);
-    
-    setShowMrWhiteGuess(false);
-    setMrWhiteGuess('');
-    setCurrentPhase('final-results');
-  };
-
-  const showRoundResults = (updatedPlayers: Player[]) => {
-    const leaderboard = [...updatedPlayers].sort((a, b) => b.points - a.points);
-    setRoundLeaderboard(leaderboard);
-    setShowRoundLeaderboard(true);
-  };
-
-  const startDiscussionTimer = () => {
-    setDiscussionTimer(120);
-    setIsTimerRunning(true);
-  };
-
-  const stopDiscussionTimer = () => {
-    setIsTimerRunning(false);
-    setDiscussionTimer(0);
-  };
-
-  const nextWordDistribution = () => {
-    if (currentPlayerIndex < players.length - 1) {
-      setCurrentPlayerIndex(currentPlayerIndex + 1);
-      setWordRevealed(false);
-    } else {
-      setCurrentPhase('description');
-      setCurrentPlayerIndex(0);
-      const alivePlayers = players.filter(p => p.isAlive);
-      const order = generateDescriptionOrder(alivePlayers);
-      setDescriptionOrder(order);
-      setCurrentDescriptionIndex(0);
-    }
-  };
-
-  const startDescriptionPhase = () => {
-    const alivePlayers = players.filter(p => p.isAlive);
-    const order = generateDescriptionOrder(alivePlayers);
-    setDescriptionOrder(order);
-    setCurrentPhase('discussion');
-  };
-
-  const startVoting = () => {
-    resetVotingState();
-    setCurrentPhase('voting');
-  };
-
-  const castVote = (votedForId: string) => {
-    if (isProcessingVotes) return;
-    
-    const alivePlayers = players.filter(p => p.isAlive);
-    const currentVoter = alivePlayers[currentVoterIndex];
-    
-    if (!currentVoter || individualVotes[currentVoter.id]) {
-      return;
-    }
-    
-    const newIndividualVotes = { ...individualVotes };
-    newIndividualVotes[currentVoter.id] = votedForId;
-    setIndividualVotes(newIndividualVotes);
-    
-    const newResults = { ...votingResults };
-    newResults[votedForId] = (newResults[votedForId] || 0) + 1;
-    setVotingResults(newResults);
-    
-    const totalVotesCast = Object.keys(newIndividualVotes).length;
-    
-    if (totalVotesCast >= alivePlayers.length) {
-      processVotingResults(newResults);
-    } else {
-      setCurrentVoterIndex(currentVoterIndex + 1);
-    }
-  };
-
-  const processVotingResults = async (results: {[key: string]: number}) => {
-    if (isProcessingVotes || currentPhase !== 'voting') return;
-    
-    setIsProcessingVotes(true);
-    
-    const maxVotes = Math.max(...Object.values(results));
-    
-    if (maxVotes === 0) {
-      const alivePlayers = players.filter(p => p.isAlive);
-      const randomPlayer = alivePlayers[Math.floor(Math.random() * alivePlayers.length)];
-      
-      Alert.alert('No Votes', 'No one received any votes. Randomly eliminating a player.', [
-        { text: 'OK', onPress: async () => {
-          if (randomPlayer?.role === 'mrwhite') {
-            await handleMrWhiteElimination(randomPlayer);
-          } else if (randomPlayer) {
-            setEliminatedPlayer(randomPlayer);
-            await eliminatePlayer(randomPlayer.id);
-          }
-        }}
-      ]);
-      return;
-    }
-    
-    const mostVotedIds = Object.entries(results)
-      .filter(([_, votes]) => votes === maxVotes)
-      .map(([id, _]) => id);
-    
-    if (mostVotedIds.length === 1) {
-      const eliminatedId = mostVotedIds[0];
-      const eliminated = players.find(p => p.id === eliminatedId);
-      
-      if (eliminated) {
-        setEliminatedPlayer(eliminated);
-        
-        if (eliminated.role === 'mrwhite') {
-          console.log('Processing Mr. White elimination');
-          await handleMrWhiteElimination(eliminated);
-        } else {
-          setCurrentPhase('elimination-result');
-          await eliminatePlayer(eliminatedId);
-        }
-      }
-    } else {
-      // Handle tie - show names and restart voting
-      const tiedPlayers = mostVotedIds
-        .map(id => players.find(p => p.id === id))
-        .filter(Boolean)
-        .map(p => p!.name);
-      
-      const tiedNames = tiedPlayers.join(', ');
-      
-      Alert.alert(
-        'Tie Vote!', 
-        `There was a tie between: ${tiedNames}. Please vote again to eliminate one player.`,
-        [
-          { 
-            text: 'Vote Again', 
-            onPress: () => {
-              resetVotingState();
-              setCurrentPhase('voting');
-            }
-          }
-        ]
-      );
-    }
-  };
-
-  const eliminatePlayer = async (playerId: string) => {
-    const newPlayers = players.map(p => 
-      p.id === playerId ? { ...p, isAlive: false, eliminationRound: currentRound } : p
-    );
-    setPlayers(newPlayers);
-    
-    await saveGameRound(playerId, votingResults);
-    
-    const { winner, isGameOver } = GameService.checkWinCondition(newPlayers);
-    if (isGameOver && winner) {
-      const finalPlayers = GameService.calculatePoints(newPlayers, winner);
-      setPlayers(finalPlayers);
-      setGameWinner(winner);
-      await saveGameResult(winner, finalPlayers);
-      setCurrentPhase('final-results');
-    } else {
-      showRoundResults(newPlayers);
-    }
-  };
-
-  const nextRound = () => {
-    setCurrentRound(currentRound + 1);
-    setCurrentPhase('description');
-    const alivePlayers = players.filter(p => p.isAlive);
-    const order = generateDescriptionOrder(alivePlayers);
-    setDescriptionOrder(order);
-    setCurrentDescriptionIndex(0);
-    setEliminatedPlayer(null);
-    resetVotingState();
-    stopDiscussionTimer();
-  };
-
-  const restartGame = () => {
-    router.back();
-  };
-
+  // Helper functions
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -393,10 +43,10 @@ export default function GameFlow() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'civilian': return '#10B981';
-      case 'undercover': return '#EF4444';
-      case 'mrwhite': return '#F59E0B';
-      default: return '#6B7280';
+      case 'civilian': return '#38a169';
+      case 'undercover': return '#e53e3e';
+      case 'mrwhite': return '#d69e2e';
+      default: return '#4a5568';
     }
   };
 
@@ -418,379 +68,539 @@ export default function GameFlow() {
     }
   };
 
+  const getVotingPlayers = () => players.filter(p => p.isAlive || p.canVote);
+  const getAlivePlayers = () => players.filter(p => p.isAlive);
+  const getCurrentVoter = () => {
+    const votingPlayers = getVotingPlayers();
+    return votingPlayers[currentVoterIndex] || null;
+  };
+
+  // Phase handlers
+  const [currentPlayerIndex, setCurrentPlayerIndex] = React.useState(0);
+  const [wordRevealed, setWordRevealed] = React.useState(false);
+
+  const nextWordDistribution = () => {
+    if (currentPlayerIndex < players.length - 1) {
+      setCurrentPlayerIndex(currentPlayerIndex + 1);
+      setWordRevealed(false);
+    } else {
+      gameActions.advancePhase('description');
+    }
+  };
+
+  const handleVote = async (targetId: string) => {
+    try {
+      const currentVoter = getCurrentVoter();
+      if (!currentVoter) return;
+      
+      await gameActions.processVote(currentVoter.id, targetId);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process vote. Please try again.');
+      console.error('Vote error:', error);
+    }
+  };
+
+  const handleMrWhiteGuess = async () => {
+    if (!guessInput.trim()) {
+      Alert.alert('Error', 'Please enter a guess');
+      return;
+    }
+
+    try {
+      await gameActions.processMrWhiteGuess(guessInput);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to process guess. Please try again.');
+      console.error('Mr White guess error:', error);
+    }
+  };
+
+  const handleSkipGuess = async () => {
+    try {
+      await gameActions.skipMrWhiteGuess();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to skip guess. Please try again.');
+      console.error('Skip guess error:', error);
+    }
+  };
+
+  // Add function to continue after elimination result
+  const continueAfterElimination = () => {
+    if (eliminatedPlayer?.role === 'mrwhite') {
+      gameActions.advancePhase('mr-white-guess');
+    } else {
+      // Check win condition
+      const { winner, isGameOver } = GameService.checkWinCondition(players);
+      
+      if (isGameOver && winner) {
+        const scoredPlayers = GameService.calculatePoints(players, winner);
+        gameActions.updateState({
+          players: scoredPlayers,
+          gameWinner: winner,
+          currentPhase: 'final-results',
+        });
+        gameActions.endGame(winner);
+      } else {
+        // Continue to next round
+        gameActions.updateState({
+          currentRound: currentRound + 1,
+          votingResults: {},
+          individualVotes: {},
+          currentVoterIndex: 0,
+          currentPhase: 'description',
+        });
+      }
+    }
+  };
+
+  // Render voting phase
+  if (currentPhase === 'voting') {
+    const votingPlayers = getVotingPlayers();
+    const alivePlayers = getAlivePlayers();
+    const currentVoter = getCurrentVoter();
+    const votedCount = Object.keys(individualVotes).length;
+    const totalVoters = votingPlayers.length;
+
+    if (isProcessingVotes) {
+      return (
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+          <View style={styles.header}>
+            <Vote size={24} color="#FFFFFF" />
+            <Text style={styles.title}>Processing Votes...</Text>
+            <Text style={styles.subtitle}>Round {currentRound}</Text>
+          </View>
+
+          <View style={styles.centerContent}>
+            <ModernCard variant="glass" style={styles.processingCard}>
+              <Clock size={32} color="#f093fb" />
+              <Text style={styles.processingText}>Counting votes and determining elimination...</Text>
+            </ModernCard>
+          </View>
+        </LinearGradient>
+      );
+    }
+
+    if (!currentVoter) {
+      return (
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Voting Complete</Text>
+            <Text style={styles.subtitle}>Round {currentRound}</Text>
+          </View>
+        </LinearGradient>
+      );
+    }
+
+    return (
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+        <View style={styles.header}>
+          <Vote size={24} color="#FFFFFF" />
+          <Text style={styles.title}>Voting Phase</Text>
+          <Text style={styles.subtitle}>Round {currentRound}</Text>
+        </View>
+
+        <View style={styles.votingProgress}>
+          <Text style={styles.progressText}>
+            {votedCount} / {totalVoters} players have voted
+          </Text>
+          <View style={styles.progressBar}>
+            <View 
+              style={[
+                styles.progressFill, 
+                { width: `${(votedCount / totalVoters) * 100}%` }
+              ]} 
+            />
+          </View>
+        </View>
+
+        <ModernCard variant="glass" style={styles.currentVoterCard}>
+          <Text style={styles.currentVoterLabel}>Current Voter:</Text>
+          <Text style={styles.currentVoterName}>{currentVoter.name}</Text>
+          {currentVoter.specialRole && (
+            <ModernBadge variant="warning" gradient>
+              ⚡ {currentVoter.specialRole.replace('-', ' ').toUpperCase()}
+            </ModernBadge>
+          )}
+          <Text style={styles.votingInstructions}>
+            Choose who you think should be eliminated
+          </Text>
+        </ModernCard>
+
+        <ScrollView style={styles.playersContainer}>
+          <Text style={styles.sectionTitle}>Vote to Eliminate:</Text>
+          {alivePlayers.filter(player => player.id !== currentVoter.id).map((player) => {
+            const voteCount = votingResults[player.id] || 0;
+            const maxVotes = Math.max(...Object.values(votingResults));
+            const hasMostVotes = voteCount > 0 && voteCount === maxVotes;
+            
+            return (
+              <TouchableOpacity
+                key={player.id}
+                style={[
+                  styles.playerCard,
+                  hasMostVotes && styles.mostVotedPlayerCard
+                ]}
+                onPress={() => handleVote(player.id)}
+              >
+                <View style={styles.playerInfo}>
+                  <Text style={styles.playerName}>{player.name}</Text>
+                </View>
+                
+                <View style={styles.voteInfo}>
+                  {voteCount > 0 && (
+                    <ModernBadge variant="destructive" size="sm">
+                      {voteCount}
+                    </ModernBadge>
+                  )}
+                  <Text style={styles.tapToVoteText}>Tap to vote</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {votedCount > 0 && (
+          <ModernCard variant="elevated" style={styles.votingSummary}>
+            <Text style={styles.summaryTitle}>Current Votes:</Text>
+            <View style={styles.summaryList}>
+              {Object.entries(votingResults)
+                .sort(([,a], [,b]) => b - a)
+                .map(([playerId, count]) => {
+                  const player = players.find(p => p.id === playerId);
+                  return player ? (
+                    <View key={playerId} style={styles.summaryItem}>
+                      <Text style={styles.summaryPlayerName}>{player.name}</Text>
+                      <ModernBadge variant="info" size="sm">
+                        {count} vote{count !== 1 ? 's' : ''}
+                      </ModernBadge>
+                    </View>
+                  ) : null;
+                })}
+            </View>
+          </ModernCard>
+        )}
+      </LinearGradient>
+    );
+  }
+
+  // Word distribution phase
   if (currentPhase === 'word-distribution') {
     const currentPlayer = players[currentPlayerIndex];
     
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Word Distribution</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
         </View>
 
         <View style={styles.centerContent}>
-          <Text style={styles.passPhoneText}>
-            Pass the phone to:
-          </Text>
-          <Text style={styles.currentPlayerName}>
-            {currentPlayer?.name}
-          </Text>
-          
-          {!wordRevealed ? (
-            <TouchableOpacity
-              style={styles.revealButton}
-              onPress={() => setWordRevealed(true)}
-            >
-              <Eye size={24} color="white" />
-              <Text style={styles.revealButtonText}>Tap to See Your Word</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.wordCard}>
-              {currentPlayer?.word ? (
-                <>
-                  <Text style={styles.wordText}>{currentPlayer.word}</Text>
-                  <Text style={styles.wordHint}>
-                    Describe this word without saying it directly
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.noWordText}>You are Mr. White</Text>
-                  <Text style={styles.mrWhiteHint}>
-                    Listen carefully and try to deduce the word!
-                  </Text>
-                </>
-              )}
-              
-              <TouchableOpacity
-                style={styles.nextButton}
-                onPress={nextWordDistribution}
+          <ModernCard variant="glass" style={styles.wordDistributionCard}>
+            <Text style={styles.passPhoneText}>Pass the phone to:</Text>
+            <Text style={styles.currentPlayerName}>{currentPlayer?.name}</Text>
+            
+            {!wordRevealed ? (
+              <ModernButton
+                variant="primary"
+                size="lg"
+                onPress={() => setWordRevealed(true)}
+                icon={<Eye size={24} color="white" />}
               >
-                <Text style={styles.nextButtonText}>
+                Tap to See Your Word
+              </ModernButton>
+            ) : (
+              <View style={styles.wordRevealContainer}>
+                {currentPlayer?.word ? (
+                  <>
+                    <Text style={styles.wordText}>{currentPlayer.word}</Text>
+                    <Text style={styles.wordHint}>
+                      {currentPlayer.specialRole === 'mr-meme' 
+                        ? '🤡 You are Mr. Meme! You can only mime and gesture - no verbal clues!'
+                        : 'Describe this word without saying it directly'
+                      }
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.noWordText}>You are Mr. White</Text>
+                    <Text style={styles.mrWhiteHint}>
+                      Listen carefully and try to deduce the word!
+                    </Text>
+                  </>
+                )}
+                
+                {currentPlayer?.specialRole && (
+                  <ModernBadge variant="warning" gradient>
+                    <Zap size={16} color="#FFFFFF" />
+                    Special Role: {currentPlayer.specialRole.replace('-', ' ')}
+                  </ModernBadge>
+                )}
+                
+                <ModernButton
+                  variant="success"
+                  size="lg"
+                  onPress={nextWordDistribution}
+                  icon={<ArrowRight size={16} color="white" />}
+                >
                   {currentPlayerIndex < players.length - 1 ? 'Next Player' : 'Start Game'}
-                </Text>
-                <ArrowRight size={16} color="white" />
-              </TouchableOpacity>
-            </View>
-          )}
+                </ModernButton>
+              </View>
+            )}
+          </ModernCard>
         </View>
       </LinearGradient>
     );
   }
 
+  // Description phase
   if (currentPhase === 'description') {
+    const alivePlayers = getAlivePlayers();
+    
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Description Phase</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
         </View>
 
         <View style={styles.centerContent}>
-          <Text style={styles.sectionTitle}>Description Order:</Text>
-          <View style={styles.descriptionOrderList}>
-            {descriptionOrder.map((player, index) => (
-              <View 
-                key={player.id} 
-                style={styles.descriptionOrderItem}
-              >
-                <Text style={styles.descriptionOrderText}>
-                  {index + 1}. {player.name}
-                </Text>
-              </View>
-            ))}
-          </View>
-          
-          <Text style={styles.descriptionHint}>
-            Each player describes their word in one sentence following this order
-          </Text>
+          <ModernCard variant="glass" style={styles.descriptionCard}>
+            <Text style={styles.sectionTitle}>Description Order:</Text>
+            <View style={styles.descriptionOrderList}>
+              {alivePlayers.map((player, index) => (
+                <View key={player.id} style={styles.descriptionOrderItem}>
+                  <ModernBadge variant="primary" size="sm">
+                    {index + 1}
+                  </ModernBadge>
+                  <Text style={styles.descriptionOrderText}>
+                    {player.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            
+            <Text style={styles.descriptionHint}>
+              Each player describes their word in one sentence following this order
+            </Text>
 
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={startDescriptionPhase}
-          >
-            <Text style={styles.nextButtonText}>Start Discussion</Text>
-            <ArrowRight size={16} color="white" />
-          </TouchableOpacity>
+            <ModernButton 
+              variant="primary" 
+              size="lg" 
+              onPress={() => gameActions.advancePhase('discussion')}
+              icon={<ArrowRight size={16} color="white" />}
+            >
+              Start Discussion
+            </ModernButton>
+          </ModernCard>
         </View>
       </LinearGradient>
     );
   }
 
+  // Discussion phase
   if (currentPhase === 'discussion') {
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Discussion Phase</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
         </View>
 
         <View style={styles.centerContent}>
-          <Text style={styles.phaseInstructions}>
-            Analyze the descriptions and identify suspicious players
-          </Text>
-          
-          <View style={styles.discussionCard}>
+          <ModernCard variant="glass" style={styles.discussionCard}>
             <View style={styles.discussionHeader}>
-              <MessageCircle size={20} color="#8B5CF6" />
+              <MessageCircle size={20} color="#f093fb" />
               <Text style={styles.discussionTitle}>Discussion Time</Text>
-              {discussionTimer > 0 && (
-                <View style={styles.timerContainer}>
-                  <Timer size={16} color="#F59E0B" />
-                  <Text style={styles.timerText}>{formatTime(discussionTimer)}</Text>
-                </View>
-              )}
             </View>
             
             <View style={styles.discussionPoints}>
-              <Text style={styles.discussionText}>
-                💭 Analyze each player's description
-              </Text>
-              <Text style={styles.discussionText}>
-                🔍 Look for inconsistencies or vague answers
-              </Text>
-              <Text style={styles.discussionText}>
-                🤔 Decide who seems most suspicious
-              </Text>
+              <Text style={styles.discussionText}>💭 Analyze each player's description</Text>
+              <Text style={styles.discussionText}>🔍 Look for inconsistencies or vague answers</Text>
+              <Text style={styles.discussionText}>🤔 Decide who seems most suspicious</Text>
             </View>
-            
-            {!isTimerRunning && discussionTimer === 0 && (
-              <TouchableOpacity
-                style={styles.timerButton}
-                onPress={startDiscussionTimer}
-              >
-                <Timer size={16} color="white" />
-                <Text style={styles.timerButtonText}>Start 2min Timer</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+          </ModernCard>
 
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={startVoting}
+          <ModernButton 
+            variant="destructive" 
+            size="xl" 
+            onPress={() => gameActions.advancePhase('voting')}
+            icon={<Vote size={20} color="white" />}
           >
-            <Text style={styles.nextButtonText}>Start Voting</Text>
-            <ArrowRight size={16} color="white" />
-          </TouchableOpacity>
+            Start Voting
+          </ModernButton>
         </View>
       </LinearGradient>
     );
   }
 
-  if (currentPhase === 'voting') {
-    const alivePlayers = players.filter(p => p.isAlive);
-    const currentVoter = alivePlayers[currentVoterIndex];
-    const hasVoted = currentVoter ? individualVotes[currentVoter.id] : false;
-    
-    return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Voting Phase</Text>
-          <Text style={styles.subtitle}>Round {currentRound} • Voter {currentVoterIndex + 1}/{alivePlayers.length}</Text>
-        </View>
-
-        <View style={styles.centerContent}>
-          <Text style={styles.passPhoneText}>
-            Pass the phone to:
-          </Text>
-          <Text style={styles.currentPlayerName}>
-            {currentVoter?.name}
-          </Text>
-          
-          <Text style={styles.votingInstructions}>
-            Vote to eliminate the most suspicious player:
-          </Text>
-        </View>
-
-        <ScrollView style={styles.votingContainer}>
-          {alivePlayers
-            .filter(player => player.id !== currentVoter?.id)
-            .map((player) => (
-            <TouchableOpacity
-              key={player.id}
-              style={[
-                styles.voteButton,
-                hasVoted && { opacity: 0.5 }
-              ]}
-              onPress={() => castVote(player.id)}
-              disabled={hasVoted || isProcessingVotes}
-            >
-              <Text style={styles.votePlayerName}>{player.name}</Text>
-              <Text style={styles.voteCount}>
-                Current Votes: {votingResults[player.id] || 0}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {hasVoted && currentVoter && (
-          <View style={styles.votedConfirmation}>
-            <Text style={styles.votedText}>
-              ✓ Vote cast for {players.find(p => p.id === individualVotes[currentVoter.id])?.name}
-            </Text>
-            <Text style={styles.waitingText}>
-              Waiting for {alivePlayers.length - Object.keys(individualVotes).length} more players to vote...
-            </Text>
-          </View>
-        )}
-      </LinearGradient>
-    );
-  }
-
+  // Elimination result phase
   if (currentPhase === 'elimination-result') {
+    if (!eliminatedPlayer) {
+      return (
+        <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Processing...</Text>
+          </View>
+        </LinearGradient>
+      );
+    }
+
+    const alivePlayers = getAlivePlayers();
+    const votesReceived = votingResults[eliminatedPlayer.id] || 0;
+
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.title}>Round Results</Text>
+          <Text style={styles.title}>Player Eliminated</Text>
           <Text style={styles.subtitle}>Round {currentRound}</Text>
         </View>
 
         <View style={styles.centerContent}>
-          <Text style={styles.eliminatedText}>Player Eliminated:</Text>
-          <View style={styles.eliminatedCard}>
-            <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer?.name}</Text>
-            <Text style={[styles.eliminatedRole, { color: getRoleColor(eliminatedPlayer?.role || '') }]}>
-              {getRoleEmoji(eliminatedPlayer?.role || '')} {getRoleName(eliminatedPlayer?.role || '')}
-            </Text>
-          </View>
+          <ModernCard variant="glass" style={styles.eliminationResultCard}>
+            <View style={styles.eliminatedPlayerHeader}>
+              <Text style={styles.eliminatedPlayerEmoji}>
+                {getRoleEmoji(eliminatedPlayer.role)}
+              </Text>
+              <Text style={styles.eliminatedPlayerName}>
+                {eliminatedPlayer.name}
+              </Text>
+              <ModernBadge 
+                variant={eliminatedPlayer.role === 'civilian' ? 'success' : 'destructive'} 
+                gradient 
+                size="lg"
+              >
+                {getRoleName(eliminatedPlayer.role)}
+              </ModernBadge>
+            </View>
 
-          <TouchableOpacity
-            style={styles.nextButton}
-            onPress={nextRound}
-          >
-            <Text style={styles.nextButtonText}>Continue Game</Text>
-            <ArrowRight size={16} color="white" />
-          </TouchableOpacity>
+            {eliminatedPlayer.word && (
+              <View style={styles.eliminatedPlayerWord}>
+                <Text style={styles.eliminatedWordLabel}>Their word was:</Text>
+                <Text style={styles.eliminatedWordText}>"{eliminatedPlayer.word}"</Text>
+              </View>
+            )}
+
+            {eliminatedPlayer.specialRole && (
+              <ModernBadge variant="warning" gradient>
+                ⚡ {eliminatedPlayer.specialRole.replace('-', ' ').toUpperCase()}
+              </ModernBadge>
+            )}
+
+            <View style={styles.eliminationStats}>
+              <Text style={styles.eliminationStatsText}>
+                Received {votesReceived} vote{votesReceived !== 1 ? 's' : ''}
+              </Text>
+              <Text style={styles.eliminationStatsText}>
+                {alivePlayers.length} players remaining
+              </Text>
+            </View>
+
+            {eliminatedPlayer.role === 'mrwhite' ? (
+              <View style={styles.mrWhiteEliminationInfo}>
+                <Text style={styles.mrWhiteEliminationText}>
+                  🎯 Mr. White's Final Chance!
+                </Text>
+                <Text style={styles.mrWhiteEliminationSubtext}>
+                  They get one guess to win the game
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.normalEliminationInfo}>
+                <Text style={styles.normalEliminationText}>
+                  The game continues to the next round
+                </Text>
+              </View>
+            )}
+
+            <ModernButton
+              variant="primary"
+              size="lg"
+              onPress={continueAfterElimination}
+              icon={<ArrowRight size={16} color="white" />}
+            >
+              {eliminatedPlayer.role === 'mrwhite' ? "Mr. White's Guess" : 'Continue to Next Round'}
+            </ModernButton>
+          </ModernCard>
         </View>
       </LinearGradient>
     );
   }
 
-  if (currentPhase === 'mr-white-guess' || showMrWhiteGuess) {
+  // Mr. White guess phase
+  if (currentPhase === 'mr-white-guess') {
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.title}>Mr. White's Last Chance</Text>
           <Text style={styles.subtitle}>{eliminatedPlayer?.name} was eliminated</Text>
         </View>
 
         <View style={styles.centerContent}>
-          <Text style={styles.mrWhiteGuessInstructions}>
-            As Mr. White, you can win by correctly guessing the Civilian word!
-          </Text>
-          
-          <View style={styles.guessCard}>
-            <Text style={styles.guessLabel}>What is the Civilian word?</Text>
-            <TextInput
-              style={styles.guessInput}
-              value={mrWhiteGuess}
-              onChangeText={setMrWhiteGuess}
+          <ModernCard variant="glass" style={styles.guessCard}>
+            <Text style={styles.mrWhiteGuessInstructions}>
+              As Mr. White, you can win by correctly guessing the Civilian word!
+            </Text>
+            
+            <ModernInput
+              label="What is the Civilian word?"
+              value={guessInput}
+              onChangeText={(text) => gameActions.updateState({ guessInput: text })}
               placeholder="Enter your guess..."
-              placeholderTextColor="#9CA3AF"
-              autoCapitalize="none"
-              autoCorrect={false}
+              variant="glass"
             />
             
             <View style={styles.guessButtonsContainer}>
-              <TouchableOpacity
-                style={styles.submitGuessButton}
-                onPress={submitMrWhiteGuess}
-                disabled={!mrWhiteGuess.trim()}
+              <ModernButton
+                variant="success"
+                size="lg"
+                onPress={handleMrWhiteGuess}
+                disabled={!guessInput.trim()}
               >
-                <Text style={styles.submitGuessText}>Submit Guess</Text>
-              </TouchableOpacity>
+                Submit Guess
+              </ModernButton>
               
-              <TouchableOpacity
-                style={styles.skipGuessButton}
-                onPress={skipMrWhiteGuess}
+              <ModernButton 
+                variant="ghost" 
+                size="lg" 
+                onPress={handleSkipGuess}
+                icon={<SkipForward size={16} color="#667eea" />}
               >
-                <SkipForward size={16} color="#9CA3AF" />
-                <Text style={styles.skipGuessText}>Skip Guess</Text>
-              </TouchableOpacity>
+                Skip Guess
+              </ModernButton>
             </View>
-          </View>
+          </ModernCard>
         </View>
       </LinearGradient>
     );
   }
 
-  if (showRoundLeaderboard) {
-    return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Round {currentRound} Results</Text>
-          <Text style={styles.subtitle}>Current Standings</Text>
-        </View>
-
-        <ScrollView style={styles.leaderboardContainer}>
-          {roundLeaderboard.map((player, index) => (
-            <View key={player.id} style={styles.leaderboardItem}>
-              <Text style={styles.leaderboardRank}>#{index + 1}</Text>
-              <View style={styles.leaderboardPlayerInfo}>
-                <Text style={styles.leaderboardPlayerName}>{player.name}</Text>
-                <Text style={[styles.leaderboardPlayerRole, { color: getRoleColor(player.role) }]}>
-                  {getRoleEmoji(player.role)} {getRoleName(player.role)}
-                </Text>
-                <Text style={styles.leaderboardPlayerStatus}>
-                  {player.isAlive ? '✅ Alive' : '❌ Eliminated'}
-                </Text>
-              </View>
-              <Text style={styles.leaderboardPoints}>{player.points}pts</Text>
-            </View>
-          ))}
-        </ScrollView>
-
-        <TouchableOpacity
-          style={styles.continueButton}
-          onPress={() => {
-            setShowRoundLeaderboard(false);
-            const { winner, isGameOver } = GameService.checkWinCondition(players);
-            if (isGameOver && winner) {
-              const finalPlayers = GameService.calculatePoints(players, winner);
-              setPlayers(finalPlayers);
-              setGameWinner(winner);
-              saveGameResult(winner, finalPlayers);
-              setCurrentPhase('final-results');
-            } else {
-              nextRound();
-            }
-          }}
-        >
-          <Text style={styles.continueButtonText}>Continue Game</Text>
-        </TouchableOpacity>
-      </LinearGradient>
-    );
-  }
-
+  // Final results
   if (currentPhase === 'final-results') {
     return (
-      <LinearGradient colors={['#1F2937', '#111827']} style={styles.container}>
+      <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
-          <Trophy size={32} color="#F59E0B" />
+          <Trophy size={32} color="#feca57" />
           <Text style={styles.title}>Game Over</Text>
         </View>
 
         <ScrollView style={styles.finalResultsContainer}>
-          <Text style={styles.winnerText}>{gameWinner} Win!</Text>
+          <ModernCard variant="gradient" style={styles.winnerCard}>
+            <Text style={styles.winnerText}>{gameWinner} Win!</Text>
+          </ModernCard>
           
           {wordPair && (
-            <View style={styles.wordRevealCard}>
+            <ModernCard variant="glass" style={styles.wordRevealCard}>
               <Text style={styles.wordRevealTitle}>The Words Were:</Text>
-              <Text style={styles.wordRevealText}>
-                👥 Civilians: "{wordPair.civilian_word}"
-              </Text>
-              <Text style={styles.wordRevealText}>
-                🕵️ Undercover: "{wordPair.undercover_word}"
-              </Text>
-              <Text style={styles.wordRevealCategory}>
+              <Text style={styles.wordRevealText}>👥 Civilians: "{wordPair.civilian_word}"</Text>
+              <Text style={styles.wordRevealText}>🕵️ Undercover: "{wordPair.undercover_word}"</Text>
+              <ModernBadge variant="info" gradient>
                 Category: {wordPair.category}
-              </Text>
-            </View>
+              </ModernBadge>
+            </ModernCard>
           )}
           
           <View style={styles.playersResultsList}>
             {players.map((player) => (
-              <View key={player.id} style={styles.playerResultCard}>
+              <ModernCard key={player.id} variant="elevated" style={styles.playerResultCard}>
                 <View style={styles.playerResultInfo}>
                   <Text style={styles.playerResultName}>{player.name}</Text>
                   <Text style={[styles.playerResultRole, { color: getRoleColor(player.role) }]}>
@@ -802,32 +612,66 @@ export default function GameFlow() {
                     <Text style={styles.playerResultWord}>No word assigned</Text>
                   )}
                   {player.eliminationRound && (
-                    <Text style={styles.eliminationInfo}>
+                    <ModernBadge variant="secondary" size="sm">
                       Eliminated Round {player.eliminationRound}
-                    </Text>
+                    </ModernBadge>
                   )}
                 </View>
-                <Text style={styles.playerResultPoints}>+{player.points}</Text>
-              </View>
+                <ModernBadge variant="warning" gradient size="lg">
+                  +{player.points}
+                </ModernBadge>
+              </ModernCard>
             ))}
           </View>
+          
+          {/* Elimination History */}
+          {eliminationHistory.length > 0 && (
+            <ModernCard variant="glass" style={styles.eliminationHistoryCard}>
+              <Text style={styles.eliminationHistoryTitle}>Elimination History</Text>
+              <View style={styles.eliminationHistoryList}>
+                {eliminationHistory.map((elimination, index) => (
+                  <View key={index} style={styles.eliminationHistoryItem}>
+                    <View style={styles.eliminationRound}>
+                      <Text style={styles.eliminationRoundText}>R{elimination.round}</Text>
+                    </View>
+                    <View style={styles.eliminationDetails}>
+                      <Text style={styles.eliminationPlayerName}>
+                        {elimination.player.name}
+                      </Text>
+                      <Text style={[styles.eliminationPlayerRole, { color: getRoleColor(elimination.player.role) }]}>
+                        {getRoleEmoji(elimination.player.role)} {getRoleName(elimination.player.role)}
+                      </Text>
+                      <Text style={styles.eliminationMethod}>
+                        {elimination.eliminationMethod === 'voting' && `${elimination.votesReceived} votes`}
+                        {elimination.eliminationMethod === 'chain' && 'Chain elimination'}
+                        {elimination.eliminationMethod === 'revenger' && 'Revenger target'}
+                        {elimination.eliminationMethod === 'mr-white-guess' && 'Mr. White won'}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </ModernCard>
+          )}
         </ScrollView>
 
         <View style={styles.finalButtonsContainer}>
-          <TouchableOpacity
-            style={styles.restartButton}
-            onPress={restartGame}
+          <ModernButton 
+            variant="primary" 
+            size="lg" 
+            onPress={() => router.back()}
+            icon={<RotateCcw size={16} color="white" />}
           >
-            <RotateCcw size={16} color="white" />
-            <Text style={styles.restartButtonText}>New Game</Text>
-          </TouchableOpacity>
+            New Game
+          </ModernButton>
           
-          <TouchableOpacity
-            style={styles.homeButton}
+          <ModernButton 
+            variant="secondary" 
+            size="lg" 
             onPress={() => router.back()}
           >
-            <Text style={styles.homeButtonText}>Back to Menu</Text>
-          </TouchableOpacity>
+            Back to Menu
+          </ModernButton>
         </View>
       </LinearGradient>
     );
@@ -844,349 +688,376 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 60,
     paddingBottom: 20,
-    gap: 4,
+    gap: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#F3F4F6',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: '#A0AEC0',
   },
   centerContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
+  },
+  wordDistributionCard: {
+    alignItems: 'center',
+    gap: 24,
+    minWidth: 320,
   },
   passPhoneText: {
     fontSize: 18,
-    color: '#D1D5DB',
-    marginBottom: 12,
+    color: '#CBD5E0',
+    marginBottom: 8,
   },
   currentPlayerName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#8B5CF6',
-    marginBottom: 32,
-  },
-  revealButton: {
-    backgroundColor: '#8B5CF6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderRadius: 12,
-  },
-  revealButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  wordCard: {
-    backgroundColor: '#374151',
-    padding: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    gap: 16,
-    minWidth: 280,
-  },
-  wordText: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#F3F4F6',
+    color: '#f093fb',
+    marginBottom: 16,
+  },
+  wordRevealContainer: {
+    alignItems: 'center',
+    gap: 20,
+  },
+  wordText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
     textAlign: 'center',
   },
   wordHint: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: '#A0AEC0',
     textAlign: 'center',
     fontStyle: 'italic',
+    lineHeight: 20,
   },
   noWordText: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#F59E0B',
+    color: '#d69e2e',
     textAlign: 'center',
   },
   mrWhiteHint: {
     fontSize: 14,
-    color: '#F59E0B',
+    color: '#d69e2e',
     textAlign: 'center',
     fontStyle: 'italic',
   },
-  nextButton: {
-    backgroundColor: '#8B5CF6',
+  descriptionCard: {
+    alignItems: 'center',
+    gap: 24,
+    minWidth: 320,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  descriptionOrderList: {
+    gap: 12,
+    width: '100%',
+  },
+  descriptionOrderItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 20,
+    gap: 16,
     paddingVertical: 12,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
-  nextButtonText: {
-    color: 'white',
+  descriptionOrderText: {
     fontSize: 16,
-    fontWeight: '600',
-  },
-  phaseInstructions: {
-    fontSize: 18,
-    color: '#D1D5DB',
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 24,
+    color: '#E2E8F0',
+    fontWeight: '500',
   },
   descriptionHint: {
     fontSize: 14,
-    color: '#8B5CF6',
+    color: '#667eea',
     textAlign: 'center',
     fontStyle: 'italic',
-    marginTop: 16,
   },
   discussionCard: {
-    backgroundColor: '#374151',
-    padding: 24,
-    borderRadius: 12,
+    gap: 24,
     marginBottom: 32,
-    gap: 16,
   },
   discussionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
     marginBottom: 16,
   },
   discussionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#F3F4F6',
-  },
-  timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  timerText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#F59E0B',
+    color: '#FFFFFF',
   },
   discussionPoints: {
-    gap: 12,
-  },
-  timerButton: {
-    backgroundColor: '#8B5CF6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignSelf: 'center',
-  },
-  timerButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '600',
+    gap: 16,
   },
   discussionText: {
     fontSize: 16,
-    color: '#D1D5DB',
-    lineHeight: 22,
+    color: '#CBD5E0',
+    lineHeight: 24,
   },
-  votingContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  votingInstructions: {
-    fontSize: 18,
-    color: '#D1D5DB',
-    textAlign: 'center',
+  votingProgress: {
+    paddingHorizontal: 24,
     marginBottom: 24,
   },
-  voteButton: {
-    backgroundColor: '#374151',
-    padding: 16,
-    borderRadius: 12,
+  progressText: {
+    fontSize: 14,
+    color: '#CBD5E0',
+    textAlign: 'center',
     marginBottom: 12,
+  },
+  progressBar: {
+    height: 6,
+    backgroundColor: '#2d3748',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#667eea',
+  },
+  currentVoterCard: {
+    alignItems: 'center',
+    gap: 12,
+    margin: 24,
+  },
+  currentVoterLabel: {
+    fontSize: 14,
+    color: '#A0AEC0',
+  },
+  currentVoterName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#f093fb',
+  },
+  votingInstructions: {
+    fontSize: 14,
+    color: '#CBD5E0',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  playersContainer: {
+    flex: 1,
+    paddingHorizontal: 24,
+  },
+  playerCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mostVotedPlayerCard: {
+    borderColor: '#e53e3e',
+    backgroundColor: 'rgba(229, 62, 62, 0.1)',
+  },
+  playerInfo: {
+    flex: 1,
+  },
+  playerName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  voteInfo: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  tapToVoteText: {
+    fontSize: 12,
+    color: '#667eea',
+    fontWeight: '600',
+  },
+  votingSummary: {
+    margin: 24,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 16,
+  },
+  summaryList: {
+    gap: 8,
+  },
+  summaryItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#4B5563',
   },
-  votePlayerName: {
-    fontSize: 16,
-    color: '#F3F4F6',
-    fontWeight: '600',
-  },
-  voteCount: {
+  summaryPlayerName: {
     fontSize: 14,
-    color: '#8B5CF6',
-    fontWeight: '500',
+    color: '#CBD5E0',
   },
-  votedConfirmation: {
-    backgroundColor: '#374151',
-    margin: 20,
-    padding: 16,
-    borderRadius: 12,
+  processingCard: {
     alignItems: 'center',
-    gap: 8,
+    gap: 20,
   },
-  votedText: {
+  processingText: {
     fontSize: 16,
-    color: '#10B981',
-    fontWeight: '600',
+    color: '#CBD5E0',
+    textAlign: 'center',
   },
-  waitingText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-  },
-  eliminatedText: {
-    fontSize: 18,
-    color: '#D1D5DB',
-    marginBottom: 16,
-  },
-  eliminatedCard: {
-    backgroundColor: '#374151',
-    padding: 24,
-    borderRadius: 12,
+  eliminationResultCard: {
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 32,
+    gap: 24,
+    minWidth: 320,
+  },
+  eliminatedPlayerHeader: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  eliminatedPlayerEmoji: {
+    fontSize: 64,
   },
   eliminatedPlayerName: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#F3F4F6',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
-  eliminatedRole: {
+  eliminatedPlayerWord: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+  },
+  eliminatedWordLabel: {
+    fontSize: 14,
+    color: '#A0AEC0',
+  },
+  eliminatedWordText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#f093fb',
+  },
+  eliminationStats: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+  },
+  eliminationStatsText: {
+    fontSize: 14,
+    color: '#CBD5E0',
+  },
+  mrWhiteEliminationInfo: {
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(214, 158, 46, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#d69e2e',
+  },
+  mrWhiteEliminationText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    color: '#d69e2e',
+    textAlign: 'center',
+  },
+  mrWhiteEliminationSubtext: {
+    fontSize: 14,
+    color: '#d69e2e',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  normalEliminationInfo: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+  },
+  normalEliminationText: {
+    fontSize: 14,
+    color: '#CBD5E0',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  guessCard: {
+    gap: 24,
+    minWidth: 320,
   },
   mrWhiteGuessInstructions: {
     fontSize: 18,
-    color: '#F59E0B',
+    color: '#d69e2e',
     textAlign: 'center',
-    marginBottom: 32,
     lineHeight: 24,
   },
-  guessCard: {
-    backgroundColor: '#374151',
-    padding: 24,
-    borderRadius: 12,
-    gap: 16,
-    minWidth: 280,
-  },
-  guessLabel: {
-    fontSize: 16,
-    color: '#F3F4F6',
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  guessInput: {
-    backgroundColor: '#1F2937',
-    color: '#F3F4F6',
-    padding: 16,
-    borderRadius: 8,
-    fontSize: 18,
-    textAlign: 'center',
-    borderWidth: 2,
-    borderColor: '#F59E0B',
-  },
   guessButtonsContainer: {
-    gap: 12,
-  },
-  submitGuessButton: {
-    backgroundColor: '#F59E0B',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  submitGuessText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  skipGuessButton: {
-    backgroundColor: '#374151',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#6B7280',
-  },
-  skipGuessText: {
-    color: '#9CA3AF',
-    fontSize: 14,
-    fontWeight: '600',
+    gap: 16,
   },
   finalResultsContainer: {
     flex: 1,
-    padding: 20,
+    padding: 24,
+  },
+  winnerCard: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   winnerText: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: 'bold',
-    color: '#F59E0B',
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 32,
   },
   wordRevealCard: {
-    backgroundColor: '#374151',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 24,
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
+    marginBottom: 24,
   },
   wordRevealTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#8B5CF6',
+    color: '#667eea',
     marginBottom: 8,
   },
   wordRevealText: {
     fontSize: 16,
-    color: '#F3F4F6',
+    color: '#FFFFFF',
     fontWeight: '600',
   },
-  wordRevealCategory: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontStyle: 'italic',
-  },
   playersResultsList: {
-    gap: 12,
+    gap: 16,
   },
   playerResultCard: {
-    backgroundColor: '#374151',
-    padding: 16,
-    borderRadius: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   playerResultInfo: {
     flex: 1,
-    gap: 4,
+    gap: 8,
   },
   playerResultName: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#F3F4F6',
+    color: '#FFFFFF',
   },
   playerResultRole: {
     fontSize: 14,
@@ -1194,125 +1065,64 @@ const styles = StyleSheet.create({
   },
   playerResultWord: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: '#A0AEC0',
     fontStyle: 'italic',
   },
-  eliminationInfo: {
-    fontSize: 10,
-    color: '#6B7280',
-  },
-  playerResultPoints: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#F59E0B',
-  },
   finalButtonsContainer: {
-    padding: 20,
-    gap: 12,
+    padding: 24,
+    gap: 16,
   },
-  restartButton: {
-    backgroundColor: '#8B5CF6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: 16,
-    borderRadius: 12,
-  },
-  restartButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  homeButton: {
-    backgroundColor: '#374151',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-  },
-  homeButtonText: {
-    color: '#D1D5DB',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  descriptionOrderList: {
-    backgroundColor: '#374151',
-    borderRadius: 12,
-    padding: 16,
+  eliminationHistoryCard: {
     marginBottom: 24,
-    gap: 8,
-    minWidth: 280,
   },
-  descriptionOrderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: '#1F2937',
-  },
-  descriptionOrderText: {
-    fontSize: 16,
-    color: '#D1D5DB',
-    fontWeight: '500',
-  },
-  leaderboardContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  leaderboardItem: {
-    backgroundColor: '#374151',
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 12,
-  },
-  leaderboardRank: {
+  eliminationHistoryTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#F59E0B',
-    width: 40,
+    color: '#FFFFFF',
+    marginBottom: 16,
+    textAlign: 'center',
   },
-  leaderboardPlayerInfo: {
+  eliminationHistoryList: {
+    gap: 12,
+  },
+  eliminationHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+  },
+  eliminationRound: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#667eea',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  eliminationRoundText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  eliminationDetails: {
     flex: 1,
     gap: 4,
   },
-  leaderboardPlayerName: {
+  eliminationPlayerName: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#F3F4F6',
+    color: '#FFFFFF',
   },
-  leaderboardPlayerRole: {
-    fontSize: 12,
+  eliminationPlayerRole: {
+    fontSize: 14,
     fontWeight: '600',
   },
-  leaderboardPlayerStatus: {
-    fontSize: 10,
-    color: '#9CA3AF',
-  },
-  leaderboardPoints: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#8B5CF6',
-  },
-  continueButton: {
-    backgroundColor: '#8B5CF6',
-    margin: 20,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  continueButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#F3F4F6',
-    marginBottom: 16,
+  eliminationMethod: {
+    fontSize: 12,
+    color: '#A0AEC0',
+    fontStyle: 'italic',
   },
 });

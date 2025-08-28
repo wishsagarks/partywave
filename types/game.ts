@@ -1,10 +1,15 @@
 export type PlayerRole = 'civilian' | 'undercover' | 'mrwhite';
+export type SpecialRole = 'goddess-of-justice' | 'lovers' | 'mr-meme' | 'revenger' | 'ghost' | 'joy-fool';
 export type GamePhase = 'setup' | 'word-distribution' | 'description' | 'discussion' | 'voting' | 'elimination-result' | 'mr-white-guess' | 'final-results';
 
 export interface Player {
   id: string;
   name: string;
   role: PlayerRole;
+  specialRole?: SpecialRole;
+  loverId?: string; // For lovers pairing
+  isEliminated: boolean; // Separate from isAlive for Ghost role
+  canVote: boolean; // For Ghost role
   word: string;
   isAlive: boolean;
   points: number;
@@ -39,6 +44,12 @@ export interface GameState {
   wordPair: WordPair | null;
   votingResults: { [playerId: string]: number };
   eliminatedPlayer: Player | null;
+  eliminationHistory: Array<{
+    round: number;
+    player: Player;
+    votesReceived: number;
+    eliminationMethod: 'voting' | 'chain' | 'revenger' | 'mr-white-guess';
+  }>;
   gameWinner: string;
   startTime: Date;
   endTime?: Date;
