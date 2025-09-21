@@ -3,12 +3,44 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
+
+// icons - these must exist in 'lucide-react-native' (or replace if using another icon lib)
 import { Eye, ArrowRight, Trophy, RotateCcw, MessageCircle, SkipForward, Vote, Clock } from 'lucide-react-native';
+
+// Hook and components - adjust these paths if your project uses different ones
 import { useGameFlowManager } from '@/hooks/useGameFlowManager';
 import ModernCard from '@/components/ui/modern-card';
 import ModernButton from '@/components/ui/modern-button';
 import ModernInput from '@/components/ui/modern-input';
 import ModernBadge from '@/components/ui/modern-badge';
+
+/**
+ * SANITY CHECK: detect undefined imports at runtime and throw a clear error naming them.
+ * Paste this and keep while debugging; remove after you fix the import/export issues.
+ */
+(function sanityCheckImports() {
+  // Add any other imports you care about checking here
+  const importsToCheck: { name: string; value: any }[] = [
+    { name: 'useGameFlowManager', value: (typeof useGameFlowManager !== 'undefined') ? useGameFlowManager : undefined },
+    { name: 'ModernCard', value: (typeof ModernCard !== 'undefined') ? ModernCard : undefined },
+    { name: 'ModernButton', value: (typeof ModernButton !== 'undefined') ? ModernButton : undefined },
+    { name: 'ModernInput', value: (typeof ModernInput !== 'undefined') ? ModernInput : undefined },
+    { name: 'ModernBadge', value: (typeof ModernBadge !== 'undefined') ? ModernBadge : undefined },
+    { name: 'Eye', value: (typeof Eye !== 'undefined') ? Eye : undefined },
+    { name: 'Vote', value: (typeof Vote !== 'undefined') ? Vote : undefined },
+    // ... add more icons/components here if needed
+  ];
+
+  const missing = importsToCheck.filter(i => !i.value);
+  if (missing.length) {
+    const names = missing.map(m => m.name).join(', ');
+    throw new Error(
+      `Import sanity check failed — the following imports are undefined: ${names}. ` +
+      `This usually means a default/named export mismatch or wrong import path. ` +
+      `Fix the export/import for those modules (see instructions in console).`
+    );
+  }
+})();
 
 export default function GameFlow() {
   const params = useLocalSearchParams();
@@ -119,7 +151,7 @@ export default function GameFlow() {
     }
   };
 
-  // Render: Voting
+  // Render phases (kept same as earlier, use orderedPlayers in description)
   if (currentPhase === 'voting') {
     const votingPlayers = getVotingPlayers();
     const alivePlayers = getAlivePlayers();
@@ -309,7 +341,7 @@ export default function GameFlow() {
                       setCurrentPlayerIndex(currentPlayerIndex + 1);
                       setWordRevealed(false);
                     } else {
-                      // finish distribution and reset
+                      // finish distribution and reset index
                       setCurrentPlayerIndex(0);
                       setWordRevealed(false);
                       gameActions.advancePhase('description');
@@ -327,7 +359,7 @@ export default function GameFlow() {
     );
   }
 
-  // Description phase (use orderedPlayers)
+  // Description phase
   if (currentPhase === 'description') {
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -492,7 +524,6 @@ export default function GameFlow() {
                 if (eliminatedPlayer.role === 'mrwhite') {
                   gameActions.advancePhase('mr-white-guess');
                 } else {
-                  // Reuse hook's processElimination path to continue
                   gameActions.processElimination(eliminatedPlayer.id);
                 }
               }}
@@ -658,7 +689,7 @@ export default function GameFlow() {
     );
   }
 
-  // Default fallback
+  // fallback
   return <View />;
 }
 
@@ -668,7 +699,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width:0, height:2 }, textShadowRadius: 4 },
   subtitle: { fontSize: 16, color: '#A0AEC0' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  /* ...rest of styles copied from your previous file... */
+
+  /* truncated styles for brevity in this message — keep your existing styles here */
+  /* If you want the full style block included, let me know and I'll paste it verbatim. */
   wordDistributionCard: { alignItems: 'center', gap: 24, minWidth: 320 },
   passPhoneText: { fontSize: 18, color: '#CBD5E0', marginBottom: 8 },
   currentPlayerName: { fontSize: 32, fontWeight: 'bold', color: '#f093fb', marginBottom: 16 },
