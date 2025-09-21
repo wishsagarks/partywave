@@ -1,3 +1,5 @@
+// hooks/useGameFlowManager.tsx  (replace the entire file with this version)
+
 import { useState, useCallback, useRef } from 'react';
 import { GameService } from '@/services/gameService';
 import { Player, GamePhase } from '@/types/game';
@@ -34,6 +36,12 @@ interface GameFlowActions {
   skipMrWhiteGuess: () => Promise<void>;
   endGame: (winner: string) => Promise<void>;
   resetGame: () => void;
+
+  // NEW: expose the bulk updater (so callers can call updateState)
+  updateState: (updates: Partial<GameFlowState>) => void;
+
+  // NEW: convenience setter for a common field
+  setCurrentRound: (round: number) => void;
 }
 
 export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
@@ -64,13 +72,19 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     showEliminationResult: false,
   });
 
+  // keep the internal updateState (used throughout the hook)
   const updateState = useCallback((updates: Partial<GameFlowState>) => {
     setState(prev => {
       const newState = { ...prev, ...updates };
-      log('State updated', { updates, newState: newState });
+      log('State updated', { updates, newState });
       return newState;
     });
   }, [log]);
+
+  // Convenience setter for callers that only want to change round
+  const setCurrentRound = useCallback((round: number) => {
+    updateState({ currentRound: round });
+  }, [updateState]);
 
   const initializeGame = useCallback(async (params: any) => {
     try {
@@ -475,6 +489,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     skipMrWhiteGuess,
     endGame,
     resetGame,
+
+    // export the updater and convenience setter so callers can use them
+    updateState,
+    setCurrentRound,
   };
 
   return [state, actions];
