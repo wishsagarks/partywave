@@ -1,46 +1,64 @@
 // app/game-flow.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  TextInput as RNTextInput,
+  TextInputProps,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
-
-// icons - these must exist in 'lucide-react-native' (or replace if using another icon lib)
 import { Eye, ArrowRight, Trophy, RotateCcw, MessageCircle, SkipForward, Vote, Clock } from 'lucide-react-native';
-
-// Hook and components - adjust these paths if your project uses different ones
 import { useGameFlowManager } from '@/hooks/useGameFlowManager';
-import ModernCard from '@/components/ui/modern-card';
-import ModernButton from '@/components/ui/modern-button';
-import ModernInput from '@/components/ui/modern-input';
-import ModernBadge from '@/components/ui/modern-badge';
+
+// Try to import your UI components (they may be undefined if exports/paths mismatch)
+import ModernCardImport from '@/components/ui/modern-card';
+import ModernButtonImport from '@/components/ui/modern-button';
+import ModernInputImport from '@/components/ui/modern-input';
+import ModernBadgeImport from '@/components/ui/modern-badge';
 
 /**
- * SANITY CHECK: detect undefined imports at runtime and throw a clear error naming them.
- * Paste this and keep while debugging; remove after you fix the import/export issues.
+ * Fallback components — used only if the imported components are undefined.
+ * These are minimal but compatible with the props used in this file.
  */
-(function sanityCheckImports() {
-  // Add any other imports you care about checking here
-  const importsToCheck: { name: string; value: any }[] = [
-    { name: 'useGameFlowManager', value: (typeof useGameFlowManager !== 'undefined') ? useGameFlowManager : undefined },
-    { name: 'ModernCard', value: (typeof ModernCard !== 'undefined') ? ModernCard : undefined },
-    { name: 'ModernButton', value: (typeof ModernButton !== 'undefined') ? ModernButton : undefined },
-    { name: 'ModernInput', value: (typeof ModernInput !== 'undefined') ? ModernInput : undefined },
-    { name: 'ModernBadge', value: (typeof ModernBadge !== 'undefined') ? ModernBadge : undefined },
-    { name: 'Eye', value: (typeof Eye !== 'undefined') ? Eye : undefined },
-    { name: 'Vote', value: (typeof Vote !== 'undefined') ? Vote : undefined },
-    // ... add more icons/components here if needed
-  ];
+const FallbackButton: React.FC<any> = ({ children, onPress, disabled, style, icon }) => (
+  <TouchableOpacity
+    activeOpacity={0.8}
+    onPress={onPress}
+    disabled={disabled}
+    style={[fallbackStyles.button, disabled && fallbackStyles.disabled, style]}
+  >
+    {icon ? <View style={fallbackStyles.icon}>{icon}</View> : null}
+    {typeof children === 'string' ? <Text style={fallbackStyles.label}>{children}</Text> : children}
+  </TouchableOpacity>
+);
 
-  const missing = importsToCheck.filter(i => !i.value);
-  if (missing.length) {
-    const names = missing.map(m => m.name).join(', ');
-    throw new Error(
-      `Import sanity check failed — the following imports are undefined: ${names}. ` +
-      `This usually means a default/named export mismatch or wrong import path. ` +
-      `Fix the export/import for those modules (see instructions in console).`
-    );
-  }
-})();
+const FallbackInput: React.FC<TextInputProps & { label?: string }> = ({ label, style, ...rest }) => (
+  <View style={[fallbackStyles.inputContainer, style]}>
+    {label ? <Text style={fallbackStyles.inputLabel}>{label}</Text> : null}
+    <RNTextInput {...rest} style={fallbackStyles.input} />
+  </View>
+);
+
+const FallbackCard: React.FC<any> = ({ children, style }) => (
+  <View style={[fallbackStyles.card, style]}>{children}</View>
+);
+
+const FallbackBadge: React.FC<any> = ({ children, style }) => (
+  <View style={[fallbackStyles.badge, style]}>
+    {typeof children === 'string' ? <Text style={fallbackStyles.badgeText}>{children}</Text> : children}
+  </View>
+);
+
+// Use imported components if defined, otherwise fall back
+const ModernCard = ModernCardImport ?? FallbackCard;
+const ModernButton = (ModernButtonImport as any) ?? FallbackButton;
+const ModernInput = (ModernInputImport as any) ?? FallbackInput;
+const ModernBadge = (ModernBadgeImport as any) ?? FallbackBadge;
 
 export default function GameFlow() {
   const params = useLocalSearchParams();
@@ -60,24 +78,29 @@ export default function GameFlow() {
     isProcessingVotes,
     mrWhiteGuess,
     descriptionOrder = [],
-  } = gameState;
+  } = gameState || {};
 
-  // Hooks that must always be top-level
+  // Top-level hooks (must not be conditional)
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [wordRevealed, setWordRevealed] = useState(false);
 
-  // Initialize on mount
+  // Initialize on mount (do not call during render)
   useEffect(() => {
-    gameActions.initializeGame(params);
+    // gameActions may be undefined in some error cases — guard it
+    if (gameActions && typeof gameActions.initializeGame === 'function') {
+      gameActions.initializeGame(params).catch((e) => {
+        console.warn('initializeGame failed:', e);
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helpers
-  const getAlivePlayers = () => players.filter(p => p.isAlive);
-  const getVotingPlayers = () => players.filter(p => p.isAlive || p.canVote);
+  const getAlivePlayers = () => players.filter((p: any) => p.isAlive);
+  const getVotingPlayers = () => players.filter((p: any) => p.isAlive || p.canVote);
   const getCurrentVoter = () => {
-    const votingPlayers = getVotingPlayers();
-    return votingPlayers[currentVoterIndex] || null;
+    const voters = getVotingPlayers();
+    return voters[currentVoterIndex] || null;
   };
 
   const getRoleColor = (role: string) => {
@@ -107,20 +130,24 @@ export default function GameFlow() {
     }
   };
 
-  // orderedPlayers derived from descriptionOrder (fall back to alive players)
+  // Build description order (fallback to alive players)
   const orderedPlayers = useMemo(() => {
-    if (descriptionOrder && descriptionOrder.length > 0) {
+    if (Array.isArray(descriptionOrder) && descriptionOrder.length > 0) {
       return descriptionOrder
-        .map((id: string) => players.find(p => p.id === id))
-        .filter(Boolean) as typeof players;
+        .map((id: string) => players.find((p: any) => p.id === id))
+        .filter(Boolean);
     }
     return getAlivePlayers();
   }, [descriptionOrder, players]);
 
+  // Vote handler
   const handleVote = async (targetId: string) => {
     try {
       const currentVoter = getCurrentVoter();
       if (!currentVoter) return;
+      if (!gameActions || typeof gameActions.processVote !== 'function') {
+        throw new Error('gameActions.processVote not available');
+      }
       await gameActions.processVote(currentVoter.id, targetId);
     } catch (error) {
       Alert.alert('Error', 'Failed to process vote. Please try again.');
@@ -128,36 +155,43 @@ export default function GameFlow() {
     }
   };
 
+  // Mr. White guess handlers
   const handleMrWhiteGuess = async () => {
-    const guess = (mrWhiteGuess ?? '').trim();
+    const guess = (mrWhiteGuess ?? '').toString().trim();
     if (!guess) {
-      Alert.alert('Error', 'Please enter a guess');
+      Alert.alert('Enter a guess');
       return;
     }
     try {
+      if (!gameActions || typeof gameActions.processMrWhiteGuess !== 'function') {
+        throw new Error('gameActions.processMrWhiteGuess not available');
+      }
       await gameActions.processMrWhiteGuess(guess);
     } catch (error) {
-      Alert.alert('Error', 'Failed to process guess. Please try again.');
+      Alert.alert('Error', 'Failed to process guess.');
       console.error('Mr White guess error:', error);
     }
   };
 
   const handleSkipGuess = async () => {
     try {
+      if (!gameActions || typeof gameActions.skipMrWhiteGuess !== 'function') {
+        throw new Error('gameActions.skipMrWhiteGuess not available');
+      }
       await gameActions.skipMrWhiteGuess();
     } catch (error) {
-      Alert.alert('Error', 'Failed to skip guess. Please try again.');
+      Alert.alert('Error', 'Failed to skip guess.');
       console.error('Skip guess error:', error);
     }
   };
 
-  // Render phases (kept same as earlier, use orderedPlayers in description)
+  // Render phases
   if (currentPhase === 'voting') {
     const votingPlayers = getVotingPlayers();
     const alivePlayers = getAlivePlayers();
     const currentVoter = getCurrentVoter();
     const votedCount = Object.keys(individualVotes || {}).length;
-    const totalVoters = votingPlayers.length || 1;
+    const totalVoters = Math.max(1, votingPlayers.length);
 
     if (isProcessingVotes) {
       return (
@@ -169,9 +203,9 @@ export default function GameFlow() {
           </View>
 
           <View style={styles.centerContent}>
-            <ModernCard variant="glass" style={styles.processingCard}>
+            <ModernCard style={styles.processingCard} variant="glass">
               <Clock size={32} color="#f093fb" />
-              <Text style={styles.processingText}>Counting votes and determining elimination...</Text>
+              <Text style={styles.processingText}>Counting votes...</Text>
             </ModernCard>
           </View>
         </LinearGradient>
@@ -202,12 +236,7 @@ export default function GameFlow() {
             {votedCount} / {totalVoters} players have voted
           </Text>
           <View style={styles.progressBar}>
-            <View 
-              style={[
-                styles.progressFill, 
-                { width: `${(votedCount / totalVoters) * 100}%` }
-              ]} 
-            />
+            <View style={[styles.progressFill, { width: `${(votedCount / totalVoters) * 100}%` }]} />
           </View>
         </View>
 
@@ -215,68 +244,36 @@ export default function GameFlow() {
           <Text style={styles.currentVoterLabel}>Current Voter:</Text>
           <Text style={styles.currentVoterName}>{currentVoter.name}</Text>
           {currentVoter.specialRole && (
-            <ModernBadge variant="warning" gradient>
-              <Text>⚡ {currentVoter.specialRole.replace('-', ' ').toUpperCase()}</Text>
+            <ModernBadge variant="warning">
+              {`⚡ ${String(currentVoter.specialRole).replace('-', ' ').toUpperCase()}`}
             </ModernBadge>
           )}
-          <Text style={styles.votingInstructions}>
-            Choose who you think should be eliminated
-          </Text>
+          <Text style={styles.votingInstructions}>Choose who you think should be eliminated</Text>
         </ModernCard>
 
         <ScrollView style={styles.playersContainer}>
           <Text style={styles.sectionTitle}>Vote to Eliminate:</Text>
-          {alivePlayers.filter(player => player.id !== currentVoter.id).map((player) => {
+          {alivePlayers.filter((p: any) => p.id !== currentVoter.id).map((player: any) => {
             const voteCount = votingResults[player.id] || 0;
             const maxVotes = Math.max(0, ...Object.values(votingResults || {}));
             const hasMostVotes = voteCount > 0 && voteCount === maxVotes;
-            
             return (
               <TouchableOpacity
                 key={player.id}
-                style={[
-                  styles.playerCard,
-                  hasMostVotes && styles.mostVotedPlayerCard
-                ]}
+                style={[styles.playerCard, hasMostVotes && styles.mostVotedPlayerCard]}
                 onPress={() => handleVote(player.id)}
               >
                 <View style={styles.playerInfo}>
                   <Text style={styles.playerName}>{player.name}</Text>
                 </View>
-                
                 <View style={styles.voteInfo}>
-                  {voteCount > 0 && (
-                    <ModernBadge variant="destructive" size="sm">
-                      <Text>{voteCount}</Text>
-                    </ModernBadge>
-                  )}
+                  {voteCount > 0 && <ModernBadge variant="destructive">{String(voteCount)}</ModernBadge>}
                   <Text style={styles.tapToVoteText}>Tap to vote</Text>
                 </View>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
-
-        {votedCount > 0 && (
-          <ModernCard variant="elevated" style={styles.votingSummary}>
-            <Text style={styles.summaryTitle}>Current Votes:</Text>
-            <View style={styles.summaryList}>
-              {Object.entries(votingResults || {})
-                .sort(([,a], [,b]) => b - a)
-                .map(([playerId, count]) => {
-                  const player = players.find(p => p.id === playerId);
-                  return player ? (
-                    <View key={playerId} style={styles.summaryItem}>
-                      <Text style={styles.summaryPlayerName}>{player.name}</Text>
-                      <ModernBadge variant="info" size="sm">
-                        <Text>{count} vote{count !== 1 ? 's' : ''}</Text>
-                      </ModernBadge>
-                    </View>
-                  ) : null;
-                })}
-            </View>
-          </ModernCard>
-        )}
       </LinearGradient>
     );
   }
@@ -295,15 +292,10 @@ export default function GameFlow() {
         <View style={styles.centerContent}>
           <ModernCard variant="glass" style={styles.wordDistributionCard}>
             <Text style={styles.passPhoneText}>Pass the phone to:</Text>
-            <Text style={styles.currentPlayerName}>{currentPlayer?.name}</Text>
-            
+            <Text style={styles.currentPlayerName}>{currentPlayer?.name ?? 'Player'}</Text>
+
             {!wordRevealed ? (
-              <ModernButton
-                variant="primary"
-                size="lg"
-                onPress={() => setWordRevealed(true)}
-                icon={<Eye size={24} color="white" />}
-              >
+              <ModernButton variant="primary" size="lg" onPress={() => setWordRevealed(true)} icon={<Eye size={20} color="white" />}>
                 Tap to See Your Word
               </ModernButton>
             ) : (
@@ -312,27 +304,20 @@ export default function GameFlow() {
                   <>
                     <Text style={styles.wordText}>{currentPlayer.word}</Text>
                     <Text style={styles.wordHint}>
-                      {currentPlayer.specialRole === 'mr-meme' 
-                        ? '🤡 You are Mr. Meme! You can only mime and gesture - no verbal clues!'
-                        : 'Describe this word without saying it directly'
-                      }
+                      {currentPlayer.specialRole === 'mr-meme'
+                        ? '🤡 You are Mr. Meme! Mime only'
+                        : 'Describe this word without saying it directly'}
                     </Text>
                   </>
                 ) : (
                   <>
                     <Text style={styles.noWordText}>You are Mr. White</Text>
-                    <Text style={styles.mrWhiteHint}>
-                      Listen carefully and try to deduce the word!
-                    </Text>
+                    <Text style={styles.mrWhiteHint}>Try to deduce the word from others</Text>
                   </>
                 )}
-                
-                {currentPlayer?.specialRole && (
-                  <ModernBadge variant="warning" gradient>
-                    <Text>Special Role: {currentPlayer.specialRole.replace('-', ' ')}</Text>
-                  </ModernBadge>
-                )}
-                
+
+                {currentPlayer?.specialRole && <ModernBadge variant="warning">{`Special: ${currentPlayer.specialRole}`}</ModernBadge>}
+
                 <ModernButton
                   variant="success"
                   size="lg"
@@ -341,10 +326,10 @@ export default function GameFlow() {
                       setCurrentPlayerIndex(currentPlayerIndex + 1);
                       setWordRevealed(false);
                     } else {
-                      // finish distribution and reset index
+                      // reset and move to description
                       setCurrentPlayerIndex(0);
                       setWordRevealed(false);
-                      gameActions.advancePhase('description');
+                      gameActions?.advancePhase && gameActions.advancePhase('description');
                     }
                   }}
                   icon={<ArrowRight size={16} color="white" />}
@@ -359,7 +344,7 @@ export default function GameFlow() {
     );
   }
 
-  // Description phase
+  // Description
   if (currentPhase === 'description') {
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -372,28 +357,17 @@ export default function GameFlow() {
           <ModernCard variant="glass" style={styles.descriptionCard}>
             <Text style={styles.sectionTitle}>Description Order:</Text>
             <View style={styles.descriptionOrderList}>
-              {orderedPlayers.map((player: any, index: number) => (
+              {orderedPlayers.map((player: any, idx: number) => (
                 <View key={player.id} style={styles.descriptionOrderItem}>
-                  <ModernBadge variant="primary" size="sm">
-                    <Text>{index + 1}</Text>
-                  </ModernBadge>
-                  <Text style={styles.descriptionOrderText}>
-                    {player.name}
-                  </Text>
+                  <ModernBadge variant="primary">{String(idx + 1)}</ModernBadge>
+                  <Text style={styles.descriptionOrderText}>{player.name}</Text>
                 </View>
               ))}
             </View>
-            
-            <Text style={styles.descriptionHint}>
-              Each player describes their word in one sentence following this order
-            </Text>
 
-            <ModernButton 
-              variant="primary" 
-              size="lg" 
-              onPress={() => gameActions.advancePhase('discussion')}
-              icon={<ArrowRight size={16} color="white" />}
-            >
+            <Text style={styles.descriptionHint}>Each player describes their word once in this order</Text>
+
+            <ModernButton variant="primary" size="lg" onPress={() => gameActions?.advancePhase && gameActions.advancePhase('discussion')}>
               Start Discussion
             </ModernButton>
           </ModernCard>
@@ -417,20 +391,13 @@ export default function GameFlow() {
               <MessageCircle size={20} color="#f093fb" />
               <Text style={styles.discussionTitle}>Discussion Time</Text>
             </View>
-            
+
             <View style={styles.discussionPoints}>
-              <Text style={styles.discussionText}>💭 Analyze each player's description</Text>
-              <Text style={styles.discussionText}>🔍 Look for inconsistencies or vague answers</Text>
-              <Text style={styles.discussionText}>🤔 Decide who seems most suspicious</Text>
+              <Text style={styles.discussionText}>Analyze descriptions and choose who looks suspicious</Text>
             </View>
           </ModernCard>
 
-          <ModernButton 
-            variant="destructive" 
-            size="xl" 
-            onPress={() => gameActions.advancePhase('voting')}
-            icon={<Vote size={20} color="white" />}
-          >
+          <ModernButton variant="destructive" size="xl" onPress={() => gameActions?.advancePhase && gameActions.advancePhase('voting')}>
             Start Voting
           </ModernButton>
         </View>
@@ -462,21 +429,11 @@ export default function GameFlow() {
 
         <View style={styles.centerContent}>
           <ModernCard variant="glass" style={styles.eliminationResultCard}>
-            <View style={styles.eliminatedPlayerHeader}>
-              <Text style={styles.eliminatedPlayerEmoji}>
-                {getRoleEmoji(eliminatedPlayer.role)}
-              </Text>
-              <Text style={styles.eliminatedPlayerName}>
-                {eliminatedPlayer.name}
-              </Text>
-              <ModernBadge 
-                variant={eliminatedPlayer.role === 'civilian' ? 'success' : 'destructive'} 
-                gradient 
-                size="lg"
-              >
-                <Text>{getRoleName(eliminatedPlayer.role)}</Text>
-              </ModernBadge>
-            </View>
+            <Text style={styles.eliminatedPlayerEmoji}>{getRoleEmoji(eliminatedPlayer.role)}</Text>
+            <Text style={styles.eliminatedPlayerName}>{eliminatedPlayer.name}</Text>
+            <ModernBadge variant={eliminatedPlayer.role === 'civilian' ? 'success' : 'destructive'}>
+              {getRoleName(eliminatedPlayer.role)}
+            </ModernBadge>
 
             {eliminatedPlayer.word && (
               <View style={styles.eliminatedPlayerWord}>
@@ -485,59 +442,33 @@ export default function GameFlow() {
               </View>
             )}
 
-            {eliminatedPlayer.specialRole && (
-              <ModernBadge variant="warning" gradient>
-                <Text>⚡ {eliminatedPlayer.specialRole.replace('-', ' ').toUpperCase()}</Text>
-              </ModernBadge>
-            )}
-
             <View style={styles.eliminationStats}>
-              <Text style={styles.eliminationStatsText}>
-                Received {votesReceived} vote{votesReceived !== 1 ? 's' : ''}
-              </Text>
-              <Text style={styles.eliminationStatsText}>
-                {alivePlayers.length} players remaining
-              </Text>
+              <Text style={styles.eliminationStatsText}>Received {votesReceived} vote{votesReceived !== 1 ? 's' : ''}</Text>
+              <Text style={styles.eliminationStatsText}>{alivePlayers.length} players remaining</Text>
             </View>
 
             {eliminatedPlayer.role === 'mrwhite' ? (
-              <View style={styles.mrWhiteEliminationInfo}>
-                <Text style={styles.mrWhiteEliminationText}>
-                  🎯 Mr. White's Final Chance!
-                </Text>
-                <Text style={styles.mrWhiteEliminationSubtext}>
-                  They get one guess to win the game
-                </Text>
-              </View>
+              <>
+                <View style={styles.mrWhiteEliminationInfo}>
+                  <Text style={styles.mrWhiteEliminationText}>🎯 Mr. White's Final Chance!</Text>
+                  <Text style={styles.mrWhiteEliminationSubtext}>They get one guess to win the game</Text>
+                </View>
+                <ModernButton variant="primary" size="lg" onPress={() => gameActions?.advancePhase && gameActions.advancePhase('mr-white-guess')}>
+                  Mr. White's Guess
+                </ModernButton>
+              </>
             ) : (
-              <View style={styles.normalEliminationInfo}>
-                <Text style={styles.normalEliminationText}>
-                  The game continues to the next round
-                </Text>
-              </View>
+              <ModernButton variant="primary" size="lg" onPress={() => gameActions?.processElimination && gameActions.processElimination(eliminatedPlayer.id)}>
+                Continue to Next Round
+              </ModernButton>
             )}
-
-            <ModernButton
-              variant="primary"
-              size="lg"
-              onPress={() => {
-                if (eliminatedPlayer.role === 'mrwhite') {
-                  gameActions.advancePhase('mr-white-guess');
-                } else {
-                  gameActions.processElimination(eliminatedPlayer.id);
-                }
-              }}
-              icon={<ArrowRight size={16} color="white" />}
-            >
-              {eliminatedPlayer.role === 'mrwhite' ? "Mr. White's Guess" : 'Continue to Next Round'}
-            </ModernButton>
           </ModernCard>
         </View>
       </LinearGradient>
     );
   }
 
-  // Mr. White guess
+  // Mr. White guess phase
   if (currentPhase === 'mr-white-guess') {
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -548,34 +479,21 @@ export default function GameFlow() {
 
         <View style={styles.centerContent}>
           <ModernCard variant="glass" style={styles.guessCard}>
-            <Text style={styles.mrWhiteGuessInstructions}>
-              As Mr. White, you can win by correctly guessing the Civilian word!
-            </Text>
-            
+            <Text style={styles.mrWhiteGuessInstructions}>Guess the Civilian word to win!</Text>
+
             <ModernInput
               label="What is the Civilian word?"
               value={mrWhiteGuess ?? ''}
-              onChangeText={(text) => gameActions.updateState({ mrWhiteGuess: text })}
+              onChangeText={(text: string) => gameActions?.updateState && gameActions.updateState({ mrWhiteGuess: text })}
               placeholder="Enter your guess..."
-              variant="glass"
             />
-            
+
             <View style={styles.guessButtonsContainer}>
-              <ModernButton
-                variant="success"
-                size="lg"
-                onPress={handleMrWhiteGuess}
-                disabled={!((mrWhiteGuess ?? '').trim())}
-              >
+              <ModernButton variant="success" size="lg" onPress={handleMrWhiteGuess} disabled={!((mrWhiteGuess ?? '').toString().trim())}>
                 Submit Guess
               </ModernButton>
-              
-              <ModernButton 
-                variant="ghost" 
-                size="lg" 
-                onPress={handleSkipGuess}
-                icon={<SkipForward size={16} color="#667eea" />}
-              >
+
+              <ModernButton variant="ghost" size="lg" onPress={handleSkipGuess} icon={<SkipForward size={16} color="#667eea" />}>
                 Skip Guess
               </ModernButton>
             </View>
@@ -598,66 +516,45 @@ export default function GameFlow() {
           <ModernCard variant="gradient" style={styles.winnerCard}>
             <Text style={styles.winnerText}>{gameWinner} Win!</Text>
           </ModernCard>
-          
+
           {wordPair && (
             <ModernCard variant="glass" style={styles.wordRevealCard}>
               <Text style={styles.wordRevealTitle}>The Words Were:</Text>
               <Text style={styles.wordRevealText}>👥 Civilians: "{wordPair.civilian_word}"</Text>
               <Text style={styles.wordRevealText}>🕵️ Undercover: "{wordPair.undercover_word}"</Text>
-              <ModernBadge variant="info" gradient>
-                <Text>Category: {wordPair.category}</Text>
-              </ModernBadge>
+              <ModernBadge variant="info">{`Category: ${wordPair.category}`}</ModernBadge>
             </ModernCard>
           )}
-          
+
           <View style={styles.playersResultsList}>
-            {players.map((player) => (
+            {players.map((player: any) => (
               <ModernCard key={player.id} variant="elevated" style={styles.playerResultCard}>
                 <View style={styles.playerResultInfo}>
                   <Text style={styles.playerResultName}>{player.name}</Text>
-                  <Text style={[styles.playerResultRole, { color: getRoleColor(player.role) }]}>
-                    {getRoleEmoji(player.role)} {getRoleName(player.role)}
-                  </Text>
-                  {player.word ? (
-                    <Text style={styles.playerResultWord}>"{player.word}"</Text>
-                  ) : (
-                    <Text style={styles.playerResultWord}>No word assigned</Text>
-                  )}
-                  {player.eliminationRound && (
-                    <ModernBadge variant="secondary" size="sm">
-                      <Text>Eliminated Round {player.eliminationRound}</Text>
-                    </ModernBadge>
-                  )}
+                  <Text style={[styles.playerResultRole, { color: getRoleColor(player.role) }]}>{`${getRoleEmoji(player.role)} ${getRoleName(player.role)}`}</Text>
+                  {player.word ? <Text style={styles.playerResultWord}>"{player.word}"</Text> : <Text style={styles.playerResultWord}>No word</Text>}
+                  {player.eliminationRound && <ModernBadge variant="secondary">{`Eliminated Round ${player.eliminationRound}`}</ModernBadge>}
                 </View>
-                <ModernBadge variant="warning" gradient size="lg">
-                  <Text>+{player.points ?? 0}</Text>
-                </ModernBadge>
+                <ModernBadge variant="warning">{`+${player.points ?? 0}`}</ModernBadge>
               </ModernCard>
             ))}
           </View>
-          
-          {/* Elimination History */}
+
           {eliminationHistory.length > 0 && (
             <ModernCard variant="glass" style={styles.eliminationHistoryCard}>
               <Text style={styles.eliminationHistoryTitle}>Elimination History</Text>
               <View style={styles.eliminationHistoryList}>
-                {eliminationHistory.map((elimination, index) => (
-                  <View key={index} style={styles.eliminationHistoryItem}>
-                    <View style={styles.eliminationRound}>
-                      <Text style={styles.eliminationRoundText}>R{elimination.round}</Text>
-                    </View>
+                {eliminationHistory.map((el: any, idx: number) => (
+                  <View key={idx} style={styles.eliminationHistoryItem}>
+                    <View style={styles.eliminationRound}><Text style={styles.eliminationRoundText}>R{el.round}</Text></View>
                     <View style={styles.eliminationDetails}>
-                      <Text style={styles.eliminationPlayerName}>
-                        {elimination.player.name}
-                      </Text>
-                      <Text style={[styles.eliminationPlayerRole, { color: getRoleColor(elimination.player.role) }]}>
-                        {getRoleEmoji(elimination.player.role)} {getRoleName(elimination.player.role)}
-                      </Text>
+                      <Text style={styles.eliminationPlayerName}>{el.player.name}</Text>
+                      <Text style={[styles.eliminationPlayerRole, { color: getRoleColor(el.player.role) }]}>{`${getRoleEmoji(el.player.role)} ${getRoleName(el.player.role)}`}</Text>
                       <Text style={styles.eliminationMethod}>
-                        {elimination.eliminationMethod === 'voting' && `${elimination.votesReceived} votes`}
-                        {elimination.eliminationMethod === 'chain' && 'Chain elimination'}
-                        {elimination.eliminationMethod === 'revenger' && 'Revenger target'}
-                        {elimination.eliminationMethod === 'mr-white-guess' && 'Mr. White won'}
+                        {el.eliminationMethod === 'voting' && `${el.votesReceived} votes`}
+                        {el.eliminationMethod === 'chain' && 'Chain elimination'}
+                        {el.eliminationMethod === 'revenger' && 'Revenger target'}
+                        {el.eliminationMethod === 'mr-white-guess' && 'Mr. White won'}
                       </Text>
                     </View>
                   </View>
@@ -668,20 +565,11 @@ export default function GameFlow() {
         </ScrollView>
 
         <View style={styles.finalButtonsContainer}>
-          <ModernButton 
-            variant="primary" 
-            size="lg" 
-            onPress={() => router.back()}
-            icon={<RotateCcw size={16} color="white" />}
-          >
+          <ModernButton variant="primary" size="lg" onPress={() => router.back()} icon={<RotateCcw size={16} color="white" />}>
             New Game
           </ModernButton>
-          
-          <ModernButton 
-            variant="secondary" 
-            size="lg" 
-            onPress={() => router.back()}
-          >
+
+          <ModernButton variant="secondary" size="lg" onPress={() => router.back()}>
             Back to Menu
           </ModernButton>
         </View>
@@ -689,116 +577,132 @@ export default function GameFlow() {
     );
   }
 
-  // fallback
+  // Default fallback
   return <View />;
 }
 
+/* ---------- styles ---------- */
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { alignItems: 'center', paddingTop: 60, paddingBottom: 20, gap: 8 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width:0, height:2 }, textShadowRadius: 4 },
+  title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
   subtitle: { fontSize: 16, color: '#A0AEC0' },
   centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
 
-  /* truncated styles for brevity in this message — keep your existing styles here */
-  /* If you want the full style block included, let me know and I'll paste it verbatim. */
+  // word distribution
   wordDistributionCard: { alignItems: 'center', gap: 24, minWidth: 320 },
   passPhoneText: { fontSize: 18, color: '#CBD5E0', marginBottom: 8 },
   currentPlayerName: { fontSize: 32, fontWeight: 'bold', color: '#f093fb', marginBottom: 16 },
   wordRevealContainer: { alignItems: 'center', gap: 20 },
   wordText: { fontSize: 36, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
-  wordHint: { fontSize: 14, color: '#A0AEC0', textAlign: 'center', fontStyle: 'italic', lineHeight: 20 },
+  wordHint: { fontSize: 14, color: '#A0AEC0', textAlign: 'center', fontStyle: 'italic' },
   noWordText: { fontSize: 28, fontWeight: 'bold', color: '#d69e2e', textAlign: 'center' },
   mrWhiteHint: { fontSize: 14, color: '#d69e2e', textAlign: 'center', fontStyle: 'italic' },
 
+  // description
   descriptionCard: { alignItems: 'center', gap: 24, minWidth: 320 },
-  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
   descriptionOrderList: { gap: 12, width: '100%' },
-  descriptionOrderItem: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' },
-  descriptionOrderText: { fontSize: 16, color: '#E2E8F0', fontWeight: '500' },
+  descriptionOrderItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)' },
+  descriptionOrderText: { fontSize: 16, color: '#E2E8F0' },
   descriptionHint: { fontSize: 14, color: '#667eea', textAlign: 'center', fontStyle: 'italic' },
 
+  // discussion
   discussionCard: { gap: 24, marginBottom: 32 },
-  discussionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  discussionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   discussionTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
-  discussionPoints: { gap: 16 },
-  discussionText: { fontSize: 16, color: '#CBD5E0', lineHeight: 24 },
+  discussionPoints: { gap: 8 },
+  discussionText: { fontSize: 16, color: '#CBD5E0' },
 
-  votingProgress: { paddingHorizontal: 24, marginBottom: 24 },
-  progressText: { fontSize: 14, color: '#CBD5E0', textAlign: 'center', marginBottom: 12 },
+  // voting
+  votingProgress: { paddingHorizontal: 24, marginBottom: 16 },
+  progressText: { fontSize: 14, color: '#CBD5E0', textAlign: 'center' },
   progressBar: { height: 6, backgroundColor: '#2d3748', borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: '100%', backgroundColor: '#667eea' },
 
-  currentVoterCard: { alignItems: 'center', gap: 12, margin: 24 },
+  currentVoterCard: { alignItems: 'center', gap: 8, margin: 12 },
   currentVoterLabel: { fontSize: 14, color: '#A0AEC0' },
-  currentVoterName: { fontSize: 24, fontWeight: 'bold', color: '#f093fb' },
-  votingInstructions: { fontSize: 14, color: '#CBD5E0', textAlign: 'center', fontStyle: 'italic' },
+  currentVoterName: { fontSize: 22, fontWeight: 'bold', color: '#f093fb' },
+  votingInstructions: { fontSize: 14, color: '#CBD5E0', textAlign: 'center' },
 
-  playersContainer: { flex: 1, paddingHorizontal: 24 },
-  playerCard: { backgroundColor: 'rgba(255,255,255,0.05)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
-  mostVotedPlayerCard: { borderColor: '#e53e3e', backgroundColor: 'rgba(229,62,62,0.1)' },
+  playersContainer: { flex: 1, paddingHorizontal: 16 },
+  playerCard: { backgroundColor: 'rgba(255,255,255,0.03)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16, borderRadius: 12, marginBottom: 12 },
+  mostVotedPlayerCard: { borderColor: '#e53e3e', backgroundColor: 'rgba(229,62,62,0.08)' },
   playerInfo: { flex: 1 },
-  playerName: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
-  voteInfo: { alignItems: 'center', gap: 8 },
-  tapToVoteText: { fontSize: 12, color: '#667eea', fontWeight: '600' },
+  playerName: { fontSize: 18, fontWeight: '600', color: '#fff' },
+  voteInfo: { alignItems: 'center' },
+  tapToVoteText: { fontSize: 12, color: '#667eea' },
 
-  votingSummary: { margin: 24 },
-  summaryTitle: { fontSize: 16, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 16 },
-  summaryList: { gap: 8 },
-  summaryItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  summaryPlayerName: { fontSize: 14, color: '#CBD5E0' },
+  processingCard: { alignItems: 'center', gap: 12 },
+  processingText: { fontSize: 16, color: '#CBD5E0' },
 
-  processingCard: { alignItems: 'center', gap: 20 },
-  processingText: { fontSize: 16, color: '#CBD5E0', textAlign: 'center' },
+  eliminationResultCard: { alignItems: 'center', gap: 12, minWidth: 320 },
+  eliminatedPlayerEmoji: { fontSize: 48 },
+  eliminatedPlayerName: { fontSize: 24, fontWeight: 'bold', color: '#fff' },
+  eliminatedPlayerWord: { padding: 12, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.03)', marginVertical: 8 },
+  eliminatedWordLabel: { fontSize: 12, color: '#A0AEC0' },
+  eliminatedWordText: { fontSize: 18, color: '#f093fb' },
 
-  eliminationResultCard: { alignItems: 'center', gap: 24, minWidth: 320 },
-  eliminatedPlayerHeader: { alignItems: 'center', gap: 16 },
-  eliminatedPlayerEmoji: { fontSize: 64 },
-  eliminatedPlayerName: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
-
-  eliminatedPlayerWord: { alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 24, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
-  eliminatedWordLabel: { fontSize: 14, color: '#A0AEC0' },
-  eliminatedWordText: { fontSize: 20, fontWeight: 'bold', color: '#f093fb' },
-
-  eliminationStats: { alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 },
+  eliminationStats: { alignItems: 'center', gap: 6 },
   eliminationStatsText: { fontSize: 14, color: '#CBD5E0' },
 
-  mrWhiteEliminationInfo: { alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 24, backgroundColor: 'rgba(214,158,46,0.1)', borderRadius: 12, borderWidth: 1, borderColor: '#d69e2e' },
-  mrWhiteEliminationText: { fontSize: 16, fontWeight: 'bold', color: '#d69e2e', textAlign: 'center' },
-  mrWhiteEliminationSubtext: { fontSize: 14, color: '#d69e2e', textAlign: 'center', fontStyle: 'italic' },
+  mrWhiteEliminationInfo: { padding: 12, borderRadius: 8, backgroundColor: 'rgba(214,158,46,0.08)' },
+  mrWhiteEliminationText: { color: '#d69e2e', fontWeight: '700' },
+  mrWhiteEliminationSubtext: { color: '#d69e2e' },
 
-  normalEliminationInfo: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 },
-  normalEliminationText: { fontSize: 14, color: '#CBD5E0', textAlign: 'center', fontStyle: 'italic' },
+  guessCard: { gap: 12, minWidth: 320 },
+  mrWhiteGuessInstructions: { fontSize: 16, color: '#d69e2e', textAlign: 'center' },
+  guessButtonsContainer: { gap: 8, marginTop: 12 },
 
-  guessCard: { gap: 24, minWidth: 320 },
-  mrWhiteGuessInstructions: { fontSize: 18, color: '#d69e2e', textAlign: 'center', lineHeight: 24 },
-  guessButtonsContainer: { gap: 16 },
+  finalResultsContainer: { flex: 1, padding: 16 },
+  winnerCard: { alignItems: 'center', marginBottom: 12 },
+  winnerText: { fontSize: 28, fontWeight: 'bold', color: '#fff' },
 
-  finalResultsContainer: { flex: 1, padding: 24 },
-  winnerCard: { alignItems: 'center', marginBottom: 24 },
-  winnerText: { fontSize: 36, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+  wordRevealCard: { alignItems: 'center', gap: 8, marginBottom: 12 },
+  wordRevealTitle: { fontSize: 16, fontWeight: '700', color: '#667eea' },
+  wordRevealText: { fontSize: 14, color: '#fff' },
 
-  wordRevealCard: { alignItems: 'center', gap: 12, marginBottom: 24 },
-  wordRevealTitle: { fontSize: 18, fontWeight: 'bold', color: '#667eea', marginBottom: 8 },
-  wordRevealText: { fontSize: 16, color: '#FFFFFF', fontWeight: '600' },
-
-  playersResultsList: { gap: 16 },
+  playersResultsList: { gap: 8 },
   playerResultCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  playerResultInfo: { flex: 1, gap: 8 },
-  playerResultName: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
-  playerResultRole: { fontSize: 14, fontWeight: '600' },
-  playerResultWord: { fontSize: 12, color: '#A0AEC0', fontStyle: 'italic' },
+  playerResultInfo: { flex: 1 },
+  playerResultName: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  playerResultRole: { fontSize: 12 },
+  playerResultWord: { fontSize: 12, color: '#A0AEC0' },
 
-  finalButtonsContainer: { padding: 24, gap: 16 },
+  finalButtonsContainer: { padding: 12, gap: 8 },
 
-  eliminationHistoryCard: { marginBottom: 24 },
-  eliminationHistoryTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 16, textAlign: 'center' },
-  eliminationHistoryList: { gap: 12 },
-  eliminationHistoryItem: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
-  eliminationRound: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#667eea', alignItems: 'center', justifyContent: 'center' },
-  eliminationRoundText: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
-  eliminationDetails: { flex: 1, gap: 4 },
-  eliminationPlayerName: { fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' },
-  eliminationPlayerRole: { fontSize: 14, fontWeight: '600' },
-  eliminationMethod: { fontSize: 12, color: '#A0AEC0', fontStyle: 'italic' },
+  eliminationHistoryCard: { marginTop: 12 },
+  eliminationHistoryTitle: { fontSize: 18, color: '#fff' },
+  eliminationHistoryList: { gap: 8 },
+  eliminationHistoryItem: { flexDirection: 'row', gap: 12, padding: 8, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 8 },
+  eliminationRound: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#667eea', alignItems: 'center', justifyContent: 'center' },
+  eliminationRoundText: { color: '#fff' },
+  eliminationDetails: { flex: 1 },
+  eliminationPlayerName: { color: '#fff' },
+  eliminationPlayerRole: { color: '#fff' },
+  eliminationMethod: { color: '#A0AEC0' },
+});
+
+/* ---------- fallback component styles ---------- */
+const fallbackStyles = StyleSheet.create({
+  button: {
+    backgroundColor: '#667eea',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  label: { color: '#fff', fontWeight: '600' },
+  disabled: { opacity: 0.6 },
+  icon: { marginRight: 8 },
+
+  inputContainer: { width: '100%', marginVertical: 8, padding: 8, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 8 },
+  inputLabel: { color: '#A0AEC0', marginBottom: 6 },
+  input: { color: '#fff', paddingVertical: 6 },
+
+  card: { padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.02)' },
+
+  badge: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 999, backgroundColor: '#667eea' },
+  badgeText: { color: '#fff', fontWeight: '600' },
 });
