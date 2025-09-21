@@ -1,14 +1,15 @@
+// app/game-flow.tsx
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
 import { GameService } from '@/services/gameService';
-import { Eye, EyeOff, ArrowRight, Users, Trophy, RotateCcw, Timer, MessageCircle, SkipForward, Zap, Vote, Clock } from 'lucide-react-native';
+import { Eye, ArrowRight, Trophy, RotateCcw, MessageCircle, SkipForward, Zap, Vote, Clock } from 'lucide-react-native';
 import { useGameFlowManager } from '@/hooks/useGameFlowManager';
-import { ModernCard } from '@/components/ui/modern-card';
-import { ModernButton } from '@/components/ui/modern-button';
-import { ModernInput } from '@/components/ui/modern-input';
-import { ModernBadge } from '@/components/ui/modern-badge';
+import ModernCard from '@/components/ui/modern-card';
+import ModernButton from '@/components/ui/modern-button';
+import ModernInput from '@/components/ui/modern-input';
+import ModernBadge from '@/components/ui/modern-badge';
 
 export default function GameFlow() {
   const params = useLocalSearchParams();
@@ -26,22 +27,18 @@ export default function GameFlow() {
     individualVotes,
     currentVoterIndex,
     isProcessingVotes,
-    guessInput,
+    mrWhiteGuess,
+    descriptionOrder,
   } = gameState;
 
   // Initialize game on mount
   useEffect(() => {
+    // params from router can be strings; the hook handles parsing
     gameActions.initializeGame(params);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Helper functions
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
+  // Helpers
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'civilian': return '#38a169';
@@ -69,31 +66,17 @@ export default function GameFlow() {
     }
   };
 
-  const getVotingPlayers = () => players.filter(p => p.isAlive || p.canVote);
   const getAlivePlayers = () => players.filter(p => p.isAlive);
+  const getVotingPlayers = () => players.filter(p => p.isAlive || p.canVote);
   const getCurrentVoter = () => {
     const votingPlayers = getVotingPlayers();
     return votingPlayers[currentVoterIndex] || null;
-  };
-
-  // Phase handlers
-  const [currentPlayerIndex, setCurrentPlayerIndex] = React.useState(0);
-  const [wordRevealed, setWordRevealed] = React.useState(false);
-
-  const nextWordDistribution = () => {
-    if (currentPlayerIndex < players.length - 1) {
-      setCurrentPlayerIndex(currentPlayerIndex + 1);
-      setWordRevealed(false);
-    } else {
-      gameActions.advancePhase('description');
-    }
   };
 
   const handleVote = async (targetId: string) => {
     try {
       const currentVoter = getCurrentVoter();
       if (!currentVoter) return;
-      
       await gameActions.processVote(currentVoter.id, targetId);
     } catch (error) {
       Alert.alert('Error', 'Failed to process vote. Please try again.');
@@ -101,18 +84,14 @@ export default function GameFlow() {
     }
   };
 
-  // Safe guess helpers: ensure we never call .trim() on undefined
-  const getSafeGuessRaw = () => (guessInput ?? '');
-  const getSafeGuessTrimmed = () => getSafeGuessRaw().trim();
-
   const handleMrWhiteGuess = async () => {
-    if (!getSafeGuessTrimmed()) {
+    const guess = (mrWhiteGuess ?? '').trim();
+    if (!guess) {
       Alert.alert('Error', 'Please enter a guess');
       return;
     }
-
     try {
-      await gameActions.processMrWhiteGuess(getSafeGuessTrimmed());
+      await gameActions.processMrWhiteGuess(guess);
     } catch (error) {
       Alert.alert('Error', 'Failed to process guess. Please try again.');
       console.error('Mr White guess error:', error);
@@ -125,37 +104,6 @@ export default function GameFlow() {
     } catch (error) {
       Alert.alert('Error', 'Failed to skip guess. Please try again.');
       console.error('Skip guess error:', error);
-    }
-  };
-
-  // Add function to continue after elimination result
-  const continueAfterElimination = () => {
-    if (eliminatedPlayer?.role === 'mrwhite') {
-      gameActions.advancePhase('mr-white-guess');
-    } else {
-      // Check win condition
-      const { winner, isGameOver } = GameService.checkWinCondition(players);
-      
-      if (isGameOver && winner) {
-        const scoredPlayers = GameService.calculatePoints(players, winner);
-        gameActions.updateState({
-          players: scoredPlayers,
-          gameWinner: winner,
-          currentPhase: 'final-results',
-        });
-        gameActions.endGame(winner);
-      } else {
-        // Continue to next round
-        // Ensure currentRound is a number (fallback to 0 if undefined)
-        const nextRound = (typeof currentRound === 'number') ? currentRound + 1 : 1;
-        gameActions.updateState({
-          currentRound: nextRound,
-          votingResults: {},
-          individualVotes: {},
-          currentVoterIndex: 0,
-          currentPhase: 'description',
-        });
-      }
     }
   };
 
@@ -224,7 +172,7 @@ export default function GameFlow() {
           <Text style={styles.currentVoterName}>{currentVoter.name}</Text>
           {currentVoter.specialRole && (
             <ModernBadge variant="warning" gradient>
-              ⚡ {currentVoter.specialRole.replace('-', ' ').toUpperCase()}
+              <Text>⚡ {currentVoter.specialRole.replace('-', ' ').toUpperCase()}</Text>
             </ModernBadge>
           )}
           <Text style={styles.votingInstructions}>
@@ -255,7 +203,7 @@ export default function GameFlow() {
                 <View style={styles.voteInfo}>
                   {voteCount > 0 && (
                     <ModernBadge variant="destructive" size="sm">
-                      {voteCount}
+                      <Text>{voteCount}</Text>
                     </ModernBadge>
                   )}
                   <Text style={styles.tapToVoteText}>Tap to vote</Text>
@@ -277,7 +225,7 @@ export default function GameFlow() {
                     <View key={playerId} style={styles.summaryItem}>
                       <Text style={styles.summaryPlayerName}>{player.name}</Text>
                       <ModernBadge variant="info" size="sm">
-                        {count} vote{count !== 1 ? 's' : ''}
+                        <Text>{count} vote{count !== 1 ? 's' : ''}</Text>
                       </ModernBadge>
                     </View>
                   ) : null;
@@ -291,8 +239,11 @@ export default function GameFlow() {
 
   // Word distribution phase
   if (currentPhase === 'word-distribution') {
+    // re-use logic from your previous file (keeps behavior same)
+    const [currentPlayerIndex, setCurrentPlayerIndex] = React.useState(0);
+    const [wordRevealed, setWordRevealed] = React.useState(false);
     const currentPlayer = players[currentPlayerIndex];
-    
+
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
@@ -337,15 +288,21 @@ export default function GameFlow() {
                 
                 {currentPlayer?.specialRole && (
                   <ModernBadge variant="warning" gradient>
-                    <Zap size={16} color="#FFFFFF" />
-                    Special Role: {currentPlayer.specialRole.replace('-', ' ')}
+                    <Text>Special Role: {currentPlayer.specialRole.replace('-', ' ')}</Text>
                   </ModernBadge>
                 )}
                 
                 <ModernButton
                   variant="success"
                   size="lg"
-                  onPress={nextWordDistribution}
+                  onPress={() => {
+                    if (currentPlayerIndex < players.length - 1) {
+                      setCurrentPlayerIndex(currentPlayerIndex + 1);
+                      setWordRevealed(false);
+                    } else {
+                      gameActions.advancePhase('description');
+                    }
+                  }}
                   icon={<ArrowRight size={16} color="white" />}
                 >
                   {currentPlayerIndex < players.length - 1 ? 'Next Player' : 'Start Game'}
@@ -358,10 +315,14 @@ export default function GameFlow() {
     );
   }
 
-  // Description phase
+  // Description phase (uses descriptionOrder from hook)
   if (currentPhase === 'description') {
-    const alivePlayers = getAlivePlayers();
-    
+    // Build orderedPlayers: map descriptionOrder (ids) to player objects.
+    // If descriptionOrder is empty or invalid, fall back to alive players.
+    const orderedPlayers = (descriptionOrder && descriptionOrder.length > 0)
+      ? descriptionOrder.map(id => players.find(p => p.id === id)).filter(Boolean)
+      : getAlivePlayers();
+
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
@@ -373,10 +334,10 @@ export default function GameFlow() {
           <ModernCard variant="glass" style={styles.descriptionCard}>
             <Text style={styles.sectionTitle}>Description Order:</Text>
             <View style={styles.descriptionOrderList}>
-              {alivePlayers.map((player, index) => (
+              {orderedPlayers.map((player: any, index: number) => (
                 <View key={player.id} style={styles.descriptionOrderItem}>
                   <ModernBadge variant="primary" size="sm">
-                    {index + 1}
+                    <Text>{index + 1}</Text>
                   </ModernBadge>
                   <Text style={styles.descriptionOrderText}>
                     {player.name}
@@ -452,7 +413,7 @@ export default function GameFlow() {
     }
 
     const alivePlayers = getAlivePlayers();
-    const votesReceived = (votingResults && votingResults[eliminatedPlayer.id]) || 0;
+    const votesReceived = votingResults[eliminatedPlayer.id] || 0;
 
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -475,7 +436,7 @@ export default function GameFlow() {
                 gradient 
                 size="lg"
               >
-                {getRoleName(eliminatedPlayer.role)}
+                <Text>{getRoleName(eliminatedPlayer.role)}</Text>
               </ModernBadge>
             </View>
 
@@ -488,7 +449,7 @@ export default function GameFlow() {
 
             {eliminatedPlayer.specialRole && (
               <ModernBadge variant="warning" gradient>
-                ⚡ {eliminatedPlayer.specialRole.replace('-', ' ').toUpperCase()}
+                <Text>⚡ {eliminatedPlayer.specialRole.replace('-', ' ').toUpperCase()}</Text>
               </ModernBadge>
             )}
 
@@ -521,7 +482,14 @@ export default function GameFlow() {
             <ModernButton
               variant="primary"
               size="lg"
-              onPress={continueAfterElimination}
+              onPress={() => {
+                if (eliminatedPlayer.role === 'mrwhite') {
+                  gameActions.advancePhase('mr-white-guess');
+                } else {
+                  // continueAfterElimination: reuse logic in hook by notifying to process next flow
+                  gameActions.processElimination(eliminatedPlayer.id);
+                }
+              }}
               icon={<ArrowRight size={16} color="white" />}
             >
               {eliminatedPlayer.role === 'mrwhite' ? "Mr. White's Guess" : 'Continue to Next Round'}
@@ -549,8 +517,8 @@ export default function GameFlow() {
             
             <ModernInput
               label="What is the Civilian word?"
-              value={guessInput ?? ''}
-              onChangeText={(text) => gameActions.updateState({ guessInput: text })}
+              value={mrWhiteGuess ?? ''}
+              onChangeText={(text) => gameActions.updateState({ mrWhiteGuess: text })}
               placeholder="Enter your guess..."
               variant="glass"
             />
@@ -560,7 +528,7 @@ export default function GameFlow() {
                 variant="success"
                 size="lg"
                 onPress={handleMrWhiteGuess}
-                disabled={!getSafeGuessTrimmed()}
+                disabled={!((mrWhiteGuess ?? '').trim())}
               >
                 Submit Guess
               </ModernButton>
@@ -600,7 +568,7 @@ export default function GameFlow() {
               <Text style={styles.wordRevealText}>👥 Civilians: "{wordPair.civilian_word}"</Text>
               <Text style={styles.wordRevealText}>🕵️ Undercover: "{wordPair.undercover_word}"</Text>
               <ModernBadge variant="info" gradient>
-                Category: {wordPair.category}
+                <Text>Category: {wordPair.category}</Text>
               </ModernBadge>
             </ModernCard>
           )}
@@ -620,12 +588,12 @@ export default function GameFlow() {
                   )}
                   {player.eliminationRound && (
                     <ModernBadge variant="secondary" size="sm">
-                      Eliminated Round {player.eliminationRound}
+                      <Text>Eliminated Round {player.eliminationRound}</Text>
                     </ModernBadge>
                   )}
                 </View>
                 <ModernBadge variant="warning" gradient size="lg">
-                  +{player.points}
+                  <Text>+{player.points ?? 0}</Text>
                 </ModernBadge>
               </ModernCard>
             ))}
