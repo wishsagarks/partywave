@@ -78,12 +78,12 @@ export default function ModernBadge({
     // React element -> render as-is. For safety, clone to ensure it has a key.
     if (React.isValidElement(child)) {
       // Avoid overwriting style prop on icon elements — they may accept color/size props.
-  const childKey =
-    key ??
-    (child.props && child.props.testID) ??
-    Math.random().toString();
-  
-  return React.cloneElement(child, { key: childKey });
+    const childKey =
+      key ??
+      (child.props && child.props.testID) ??
+      Math.random().toString();
+    
+    return React.cloneElement(child, { key: childKey });
 
     }
 
