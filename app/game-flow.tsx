@@ -1,5 +1,5 @@
 // app/game-flow.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -16,20 +16,24 @@ export default function GameFlow() {
   const [gameState, gameActions] = useGameFlowManager();
 
   const {
-    players,
+    players = [],
     currentPhase,
     currentRound,
     wordPair,
     gameWinner,
     eliminatedPlayer,
-    eliminationHistory,
-    votingResults,
-    individualVotes,
-    currentVoterIndex,
+    eliminationHistory = [],
+    votingResults = {},
+    individualVotes = {},
+    currentVoterIndex = 0,
     isProcessingVotes,
     mrWhiteGuess,
-    descriptionOrder,
+    descriptionOrder = [],
   } = gameState;
+
+  // These hooks MUST be at top-level (moved here to avoid "rendered more hooks" errors)
+  const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
+  const [wordRevealed, setWordRevealed] = useState(false);
 
   // Initialize game on mount
   useEffect(() => {
@@ -72,6 +76,16 @@ export default function GameFlow() {
     const votingPlayers = getVotingPlayers();
     return votingPlayers[currentVoterIndex] || null;
   };
+
+  // orderedPlayers derived from descriptionOrder (stable across renders)
+  const orderedPlayers = useMemo(() => {
+    if (descriptionOrder && descriptionOrder.length > 0) {
+      return descriptionOrder
+        .map((id: string) => players.find(p => p.id === id))
+        .filter(Boolean) as typeof players;
+    }
+    return getAlivePlayers();
+  }, [descriptionOrder, players]);
 
   const handleVote = async (targetId: string) => {
     try {
@@ -239,9 +253,6 @@ export default function GameFlow() {
 
   // Word distribution phase
   if (currentPhase === 'word-distribution') {
-    // re-use logic from your previous file (keeps behavior same)
-    const [currentPlayerIndex, setCurrentPlayerIndex] = React.useState(0);
-    const [wordRevealed, setWordRevealed] = React.useState(false);
     const currentPlayer = players[currentPlayerIndex];
 
     return (
@@ -300,6 +311,9 @@ export default function GameFlow() {
                       setCurrentPlayerIndex(currentPlayerIndex + 1);
                       setWordRevealed(false);
                     } else {
+                      // reset distribution states and advance
+                      setCurrentPlayerIndex(0);
+                      setWordRevealed(false);
                       gameActions.advancePhase('description');
                     }
                   }}
@@ -315,14 +329,8 @@ export default function GameFlow() {
     );
   }
 
-  // Description phase (uses descriptionOrder from hook)
+  // Description phase (uses descriptionOrder from hook via orderedPlayers)
   if (currentPhase === 'description') {
-    // Build orderedPlayers: map descriptionOrder (ids) to player objects.
-    // If descriptionOrder is empty or invalid, fall back to alive players.
-    const orderedPlayers = (descriptionOrder && descriptionOrder.length > 0)
-      ? descriptionOrder.map(id => players.find(p => p.id === id)).filter(Boolean)
-      : getAlivePlayers();
-
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
         <View style={styles.header}>
