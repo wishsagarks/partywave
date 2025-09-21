@@ -1,9 +1,9 @@
-// hooks/useGameFlowManager.tsx
-import { useState, useCallback, useRef } from 'react';
+// src/hooks/useGameFlowManager.tsx
+import { useCallback, useRef, useState } from 'react';
 import { GameService } from '@/services/gameService';
 import { Player, GamePhase } from '@/types/game';
 
-interface EliminationEntry {
+interface EliminationHistoryEntry {
   round: number;
   player: Player;
   votesReceived: number;
@@ -18,7 +18,7 @@ interface GameFlowState {
   wordPair: any;
   gameWinner: string | null;
   eliminatedPlayer: Player | null;
-  eliminationHistory: EliminationEntry[];
+  eliminationHistory: EliminationHistoryEntry[];
   votingResults: Record<string, number>;
   individualVotes: Record<string, string>;
   currentVoterIndex: number;
@@ -26,9 +26,7 @@ interface GameFlowState {
   mrWhiteGuess: string;
   showMrWhiteGuess: boolean;
   showEliminationResult: boolean;
-
-  // NEW: Store computed description order for the round (array of player IDs)
-  descriptionOrder: string[];
+  descriptionOrder: string[]; // list of player ids in description order
 }
 
 interface GameFlowActions {
@@ -39,21 +37,17 @@ interface GameFlowActions {
   processMrWhiteGuess: (guess: string) => Promise<void>;
   skipMrWhiteGuess: () => Promise<void>;
   endGame: (winner: string) => Promise<void>;
-  resetGame: () => void;
   updateState: (updates: Partial<GameFlowState>) => void;
-  setCurrentRound: (round: number) => void;
-  // NEW: generate description order explicitly if desired
-  generateDescriptionOrder: (players?: Player[]) => string[];
+  resetGame: () => void;
 }
 
 export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
   const logRef = useRef<string[]>([]);
-
-  const log = useCallback((message: string, data?: any) => {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] ${message}`;
-    console.log(logMessage, data || '');
-    logRef.current.push(logMessage);
+  const log = useCallback((msg: string, data?: any) => {
+    const ts = new Date().toISOString();
+    const text = `[${ts}] ${msg}`;
+    console.log(text, data ?? '');
+    logRef.current.push(text);
   }, []);
 
   const [state, setState] = useState<GameFlowState>({
@@ -77,421 +71,23 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
 
   const updateState = useCallback((updates: Partial<GameFlowState>) => {
     setState(prev => {
-      const newState = { ...prev, ...updates };
-      log('State updated', { updates, newState });
-      return newState;
+      const next = { ...prev, ...updates };
+      log('State update', { updates, next });
+      return next;
     });
   }, [log]);
 
-  const setCurrentRound = useCallback((round: number) => {
-    updateState({ currentRound: round });
-  }, [updateState]);
+  // Helper: only alive players can vote (fix for issue #1)
+  const getVotingPlayers = useCallback(() => {
+    return state.players.filter(p => p.isAlive);
+  }, [state.players]);
 
-  /* ------------------------ Description order helper ------------------------ */
-  // Fisher-Yates shuffle for an array
-  const shuffleArray = (arr: any[]) => {
-    const out = arr.slice();
-    for (let i = out.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [out[i], out[j]] = [out[j], out[i]];
-    }
-    return out;
-  };
+  const getAlivePlayers = useCallback(() => state.players.filter(p => p.isAlive), [state.players]);
 
-  // Generate a description order (array of player IDs) from players list.
-  // Avoid returning same order twice in a row (try up to 5 times).
-  const generateDescriptionOrder = useCallback((playersList?: Player[]) => {
-    const playersToUse = playersList ?? state.players;
-    const alivePlayers = playersToUse.filter(p => p.isAlive);
-    const ids = alivePlayers.map(p => p.id);
-    if (ids.length <= 1) return ids;
-
-    let attempt = 0;
-    let order = shuffleArray(ids);
-    while (attempt < 5 && order.join(',') === state.descriptionOrder.join(',')) {
-      order = shuffleArray(ids);
-      attempt += 1;
-    }
-    return order;
-  }, [state.players, state.descriptionOrder]);
-
-  /* ----------------------------- endGame ---------------------------------- */
-  const endGame = useCallback(async (winner: string) => {
-    try {
-      log('Ending game', { winner });
-
-      const duration = 15; // placeholder, compute real if you want
-      const result = {
-        winner,
-        totalRounds: state.currentRound,
-        duration,
-        players: state.players.map(player => ({
-          id: player.id,
-          name: player.name,
-          role: player.role,
-          word: player.word,
-          points: player.points || 0,
-          wasWinner:
-            winner.toLowerCase().includes(player.role) ||
-            (winner === 'Civilians' && player.role === 'civilian') ||
-            (winner === 'Impostors' && (player.role === 'undercover' || player.role === 'mrwhite')),
-        })),
-      };
-
-      await GameService.saveGameResult(
-        state.gameId,
-        result,
-        state.wordPair,
-        state.players.map(p => p.id)
-      );
-
-      log('Game ended successfully');
-    } catch (error) {
-      log('Game end failed', error);
-      throw error;
-    }
-  }, [state, log]);
-
-  /* ------------------------- processElimination --------------------------- */
-  const processElimination = useCallback(async (playerId?: string) => {
-    try {
-      log('Processing elimination', { playerId, votingResults: state.votingResults });
-
-      let eliminatedPlayerId = playerId;
-
-      if (!eliminatedPlayerId) {
-        const votes = Object.values(state.votingResults);
-        const maxVotes = votes.length ? Math.max(...votes) : 0;
-        const tiedPlayerIds = Object.keys(state.votingResults).filter(id => state.votingResults[id] === maxVotes);
-
-        if (tiedPlayerIds.length > 1) {
-          const goddessPlayer = state.players.find(p =>
-            p.specialRole === 'goddess-of-justice' && (p.isAlive || p.canVote)
-          );
-
-          if (goddessPlayer) {
-            eliminatedPlayerId = tiedPlayerIds[Math.floor(Math.random() * tiedPlayerIds.length)];
-            log('Goddess of Justice broke tie', { eliminatedPlayerId });
-          } else {
-            log('Unresolved tie, no elimination');
-            updateState({
-              isProcessingVotes: false,
-              votingResults: {},
-              individualVotes: {},
-              currentVoterIndex: 0,
-              currentPhase: 'discussion',
-            });
-            return;
-          }
-        } else {
-          eliminatedPlayerId = tiedPlayerIds[0];
-        }
-      }
-
-      const eliminatedPlayer = state.players.find(p => p.id === eliminatedPlayerId);
-      if (!eliminatedPlayer) {
-        throw new Error('Eliminated player not found');
-      }
-
-      log('Player eliminated', { player: eliminatedPlayer.name, role: eliminatedPlayer.role });
-
-      const eliminationEntry: EliminationEntry = {
-        round: state.currentRound,
-        player: eliminatedPlayer,
-        votesReceived: state.votingResults[eliminatedPlayerId] || 0,
-        eliminationMethod: 'voting',
-      };
-
-      await GameService.saveGameRound(
-        state.gameId,
-        state.currentRound,
-        eliminatedPlayerId,
-        state.votingResults
-      );
-
-      // Mark the eliminated player as not alive and also disable their voting capability
-      const playersAfterMark = state.players.map(p =>
-        p.id === eliminatedPlayerId ? { ...p, isAlive: false, canVote: false, eliminationRound: state.currentRound } : p
-      );
-
-      updateState({
-        eliminatedPlayer,
-        eliminationHistory: [...state.eliminationHistory, eliminationEntry],
-        showEliminationResult: true,
-        currentPhase: 'elimination-result',
-        isProcessingVotes: false,
-        players: playersAfterMark,
-      });
-
-      if (eliminatedPlayer.role === 'mrwhite') {
-        log('Mr. White eliminated, showing guess screen');
-        updateState({
-          showMrWhiteGuess: true,
-          isProcessingVotes: false,
-        });
-      } else {
-        const { winner, isGameOver } = GameService.checkWinCondition(playersAfterMark);
-
-        if (isGameOver && winner) {
-          log('Game over', { winner });
-          const scoredPlayers = GameService.calculatePoints(playersAfterMark, winner);
-          updateState({
-            players: scoredPlayers,
-            gameWinner: winner,
-            currentPhase: 'final-results',
-            isProcessingVotes: false,
-            eliminatedPlayer: null,
-          });
-          await endGame(winner);
-        } else {
-          log('Game continues to next round');
-
-          // Generate next round description order and set phase to 'description'
-          const nextDescriptionOrder = generateDescriptionOrder(playersAfterMark);
-
-          updateState({
-            players: playersAfterMark,
-            currentRound: state.currentRound + 1,
-            votingResults: {},
-            individualVotes: {},
-            currentVoterIndex: 0,
-            isProcessingVotes: false,
-            showEliminationResult: false,
-            eliminatedPlayer: null,
-            currentPhase: 'description',
-            descriptionOrder: nextDescriptionOrder,
-          });
-        }
-      }
-    } catch (error) {
-      log('Elimination processing failed', error);
-      updateState({ isProcessingVotes: false });
-      throw error;
-    }
-  }, [state, updateState, log, endGame, generateDescriptionOrder]);
-
-  /* ---------------------------- processVote ------------------------------ */
-  const processVote = useCallback(async (voterId: string, targetId: string) => {
-    try {
-      log('Processing vote', { voterId, targetId, currentVoterIndex: state.currentVoterIndex });
-
-      const voter = state.players.find(p => p.id === voterId);
-      const target = state.players.find(p => p.id === targetId);
-
-      // Strict guard: voter must exist AND be alive (cannot vote if eliminated)
-      if (!voter) throw new Error('Invalid voter');
-      if (!voter.isAlive) throw new Error('Eliminated players cannot vote');
-
-      if (!target) throw new Error('Invalid target');
-      if (!target.isAlive) throw new Error('Cannot vote for eliminated player');
-
-      if (state.individualVotes[voterId]) {
-        throw new Error('Player has already voted');
-      }
-
-      const newIndividualVotes = { ...state.individualVotes, [voterId]: targetId };
-      const newVotingResults = { ...state.votingResults };
-      newVotingResults[targetId] = (newVotingResults[targetId] || 0) + 1;
-
-      const votingPlayers = state.players.filter(p => p.isAlive || p.canVote);
-      const totalVotesNeeded = votingPlayers.length;
-      const totalVotesCast = Object.keys(newIndividualVotes).length;
-
-      updateState({
-        individualVotes: newIndividualVotes,
-        votingResults: newVotingResults,
-        currentVoterIndex: state.currentVoterIndex + 1,
-      });
-
-      log('Vote processed', { totalVotesCast, totalVotesNeeded, newVotingResults });
-
-      if (totalVotesCast >= totalVotesNeeded) {
-        log('All votes collected, processing elimination');
-        updateState({ isProcessingVotes: true });
-        await processElimination('');
-      }
-    } catch (error) {
-      log('Vote processing failed', error);
-      throw error;
-    }
-  }, [state, updateState, log, processElimination]);
-
-  /* ------------------------ processMrWhiteGuess -------------------------- */
-  const processMrWhiteGuess = useCallback(async (guess: string) => {
-    try {
-      log('Processing Mr. White guess', { guess, correctWord: state.wordPair?.civilian_word });
-
-      if (!state.eliminatedPlayer || !state.wordPair) {
-        throw new Error('Invalid Mr. White guess state');
-      }
-
-      const isCorrect = guess.toLowerCase().trim() === state.wordPair.civilian_word.toLowerCase().trim();
-
-      await GameService.saveGameRound(
-        state.gameId,
-        state.currentRound,
-        state.eliminatedPlayer.id,
-        state.votingResults,
-        guess,
-        isCorrect
-      );
-
-      // Clear guess UI
-      updateState({
-        showMrWhiteGuess: false,
-        mrWhiteGuess: '',
-        showEliminationResult: false,
-      });
-
-      if (isCorrect) {
-        log('Mr. White guessed correctly, wins the game');
-        const scoredPlayers = GameService.calculatePoints(state.players, 'Mr. White');
-
-        const updatedHistory = state.eliminationHistory.map(entry =>
-          entry.player.id === state.eliminatedPlayer?.id
-            ? { ...entry, eliminationMethod: 'mr-white-guess' as const }
-            : entry
-        );
-
-        updateState({
-          players: scoredPlayers,
-          gameWinner: 'Mr. White',
-          currentPhase: 'final-results',
-          eliminationHistory: updatedHistory,
-          showEliminationResult: false,
-          eliminatedPlayer: null,
-          isProcessingVotes: false,
-        });
-        await endGame('Mr. White');
-      } else {
-        log('Mr. White guessed incorrectly, eliminating and checking win conditions');
-
-        // Mark eliminated player dead & disable their voting
-        const updatedPlayers = state.players.map(p =>
-          p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, canVote: false, eliminationRound: state.currentRound } : p
-        );
-
-        const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
-
-        if (isGameOver && winner) {
-          log('Game over after Mr. White elimination', { winner });
-          const scoredPlayers = GameService.calculatePoints(updatedPlayers, winner);
-          updateState({
-            players: scoredPlayers,
-            gameWinner: winner,
-            currentPhase: 'final-results',
-            showEliminationResult: false,
-            eliminatedPlayer: null,
-            isProcessingVotes: false,
-          });
-          await endGame(winner);
-        } else {
-          log('Game continues after Mr. White elimination');
-
-          // Generate next round description order and resume normal flow
-          const nextDescriptionOrder = generateDescriptionOrder(updatedPlayers);
-
-          updateState({
-            players: updatedPlayers,
-            currentRound: state.currentRound + 1,
-            votingResults: {},
-            individualVotes: {},
-            currentVoterIndex: 0,
-            showEliminationResult: false,
-            eliminatedPlayer: null,
-            currentPhase: 'description',
-            isProcessingVotes: false,
-            descriptionOrder: nextDescriptionOrder,
-          });
-        }
-      }
-    } catch (error) {
-      log('Mr. White guess processing failed', error);
-      updateState({
-        showMrWhiteGuess: false,
-        mrWhiteGuess: '',
-        showEliminationResult: false,
-        isProcessingVotes: false,
-      });
-      throw error;
-    }
-  }, [state, updateState, log, endGame, generateDescriptionOrder]);
-
-  /* ------------------------- skipMrWhiteGuess --------------------------- */
-  const skipMrWhiteGuess = useCallback(async () => {
-    try {
-      log('Skipping Mr. White guess');
-
-      if (!state.eliminatedPlayer) {
-        throw new Error('No eliminated player to skip guess for');
-      }
-
-      await GameService.saveGameRound(
-        state.gameId,
-        state.currentRound,
-        state.eliminatedPlayer.id,
-        state.votingResults
-      );
-
-      updateState({
-        showMrWhiteGuess: false,
-        mrWhiteGuess: '',
-        showEliminationResult: false,
-      });
-
-      const updatedPlayers = state.players.map(p =>
-        p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, canVote: false, eliminationRound: state.currentRound } : p
-      );
-
-      const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
-
-      if (isGameOver && winner) {
-        log('Game over after skipping Mr. White guess', { winner });
-        const scoredPlayers = GameService.calculatePoints(updatedPlayers, winner);
-        updateState({
-          players: scoredPlayers,
-          gameWinner: winner,
-          currentPhase: 'final-results',
-          showEliminationResult: false,
-          eliminatedPlayer: null,
-          isProcessingVotes: false,
-        });
-        await endGame(winner);
-      } else {
-        log('Game continues after skipping Mr. White guess');
-
-        const nextDescriptionOrder = generateDescriptionOrder(updatedPlayers);
-
-        updateState({
-          players: updatedPlayers,
-          currentRound: state.currentRound + 1,
-          votingResults: {},
-          individualVotes: {},
-          currentVoterIndex: 0,
-          showEliminationResult: false,
-          eliminatedPlayer: null,
-          currentPhase: 'description',
-          isProcessingVotes: false,
-          descriptionOrder: nextDescriptionOrder,
-        });
-      }
-    } catch (error) {
-      log('Skip Mr. White guess failed', error);
-      updateState({
-        showMrWhiteGuess: false,
-        mrWhiteGuess: '',
-        showEliminationResult: false,
-        isProcessingVotes: false,
-      });
-      throw error;
-    }
-  }, [state, updateState, log, endGame, generateDescriptionOrder]);
-
-  /* ------------------------ initialize / helpers ------------------------- */
+  // Initialization
   const initializeGame = useCallback(async (params: any) => {
     try {
-      log('Initializing game', params);
-
+      log('initializeGame', params);
       const gameData = await GameService.initializeGame({
         gameId: params.gameId,
         playerCount: params.playerCount,
@@ -502,22 +98,28 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         selectedSpecialRoles: params.selectedSpecialRoles ? JSON.parse(params.selectedSpecialRoles) : [],
       });
 
-      if (!gameData) {
-        throw new Error('Failed to initialize game data');
+      if (!gameData) throw new Error('No game data from service');
+
+      // Build descriptionOrder logic: choose a balanced order so undercovers are spread.
+      // Strategy: start with a random alive player, then alternate picks to maximize distance between undercovers.
+      const playersList: Player[] = gameData.players || [];
+      const shuffled = [...playersList].sort(() => Math.random() - 0.5);
+
+      // Simple ordering: ensure undercovers not clustered — interleave civs and undercovers when possible.
+      const undercovers = shuffled.filter(p => p.role === 'undercover');
+      const civilians = shuffled.filter(p => p.role === 'civilian' || p.role === 'mrwhite'); // mrwhite treated with civ for ordering
+      const order: string[] = [];
+      const maxLen = Math.max(undercovers.length, civilians.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (civilians[i]) order.push(civilians[i].id);
+        if (undercovers[i]) order.push(undercovers[i].id);
       }
-
-      // Ensure players received from backend have isAlive & canVote flags set
-      const normalizedPlayers = (gameData.players || []).map((p: Player) => ({
-        ...p,
-        isAlive: p.isAlive !== false, // default true
-        canVote: p.canVote !== false, // default true
-      }));
-
-      const firstDescriptionOrder = generateDescriptionOrder(normalizedPlayers);
+      // Append any remaining (rare)
+      shuffled.forEach(p => { if (!order.includes(p.id)) order.push(p.id); });
 
       updateState({
         gameId: params.gameId,
-        players: normalizedPlayers,
+        players: playersList,
         wordPair: gameData.wordPair,
         currentPhase: 'word-distribution',
         currentRound: 1,
@@ -525,30 +127,350 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         votingResults: {},
         individualVotes: {},
         currentVoterIndex: 0,
-        descriptionOrder: firstDescriptionOrder,
+        descriptionOrder: order,
       });
 
-      log('Game initialized successfully', gameData);
-    } catch (error) {
-      log('Game initialization failed', error);
-      throw error;
+      log('Game initialized', { playersCount: playersList.length, descriptionOrder: order });
+    } catch (err) {
+      log('initializeGame failed', err);
+      throw err;
     }
-  }, [updateState, log, generateDescriptionOrder]);
+  }, [updateState, log]);
 
   const advancePhase = useCallback((nextPhase: GamePhase) => {
-    log(`Advancing phase from ${state.currentPhase} to ${nextPhase}`);
+    log(`advancePhase ${state.currentPhase} -> ${nextPhase}`);
+    updateState({ currentPhase: nextPhase });
+  }, [state.currentPhase, updateState, log]);
 
-    // If moving to description phase, compute a fresh description order
-    if (nextPhase === 'description') {
-      const nextOrder = generateDescriptionOrder();
-      updateState({ currentPhase: nextPhase, descriptionOrder: nextOrder });
-    } else {
-      updateState({ currentPhase: nextPhase });
+  // End game: declared before other callbacks that may call it
+  const endGame = useCallback(async (winner: string) => {
+    try {
+      log('endGame', { winner });
+      const duration = 0; // calculate if you track timestamps
+      const result = {
+        winner,
+        totalRounds: state.currentRound,
+        duration,
+        players: state.players.map(p => ({
+          id: p.id,
+          name: p.name,
+          role: p.role,
+          word: p.word,
+          points: p.points || 0,
+        })),
+      };
+      await GameService.saveGameResult(state.gameId, result, state.wordPair, state.players.map(p => p.id));
+      updateState({ gameWinner: winner, currentPhase: 'final-results' });
+      log('endGame saved');
+    } catch (err) {
+      log('endGame failed', err);
+      throw err;
     }
-  }, [state.currentPhase, updateState, log, generateDescriptionOrder]);
+  }, [state, updateState, log]);
+
+  // PROCESS VOTE
+  const processVote = useCallback(async (voterId: string, targetId: string) => {
+    try {
+      log('processVote', { voterId, targetId });
+      const voter = state.players.find(p => p.id === voterId);
+      const target = state.players.find(p => p.id === targetId);
+
+      if (!voter || !target) throw new Error('Invalid voter or target');
+      if (!voter.isAlive) throw new Error('Eliminated player cannot vote'); // enforce
+      if (!target.isAlive) throw new Error('Cannot vote for eliminated player');
+      if (state.individualVotes[voterId]) throw new Error('Player already voted');
+
+      const newIndividualVotes = { ...state.individualVotes, [voterId]: targetId };
+      const newVotingResults = { ...state.votingResults };
+      newVotingResults[targetId] = (newVotingResults[targetId] || 0) + 1;
+
+      const votingPlayers = getVotingPlayers();
+      const totalVotesNeeded = votingPlayers.length;
+      const totalVotesCast = Object.keys(newIndividualVotes).length;
+
+      // update vote state and advance voter index
+      updateState({
+        individualVotes: newIndividualVotes,
+        votingResults: newVotingResults,
+        currentVoterIndex: Math.min(state.currentVoterIndex + 1, Math.max(0, votingPlayers.length - 1)),
+      });
+
+      log('vote recorded', { totalVotesCast, totalVotesNeeded, newVotingResults });
+
+      if (totalVotesCast >= totalVotesNeeded) {
+        // All votes collected -> process elimination
+        updateState({ isProcessingVotes: true });
+        await processElimination(); // let processElimination determine who to eliminate (based on votes)
+      }
+    } catch (err) {
+      log('processVote failed', err);
+      throw err;
+    }
+  }, [state, updateState, log, getVotingPlayers, processElimination]);
+
+  // PROCESS ELIMINATION
+  const processElimination = useCallback(async (playerId?: string) => {
+    try {
+      log('processElimination', { playerId, votingResults: state.votingResults });
+
+      let eliminatedPlayerId = playerId;
+
+      // If no explicit playerId, determine from votes
+      if (!eliminatedPlayerId) {
+        const votes = state.votingResults || {};
+        const values = Object.values(votes);
+        if (values.length === 0) {
+          // nothing to eliminate -> reset votes and go back to discussion
+          updateState({
+            isProcessingVotes: false,
+            votingResults: {},
+            individualVotes: {},
+            currentVoterIndex: 0,
+            currentPhase: 'discussion',
+          });
+          log('no votes, returning to discussion');
+          return;
+        }
+        const maxVotes = Math.max(...values);
+        const tied = Object.keys(votes).filter(id => votes[id] === maxVotes);
+
+        if (tied.length > 1) {
+          // tie-break: goddess-of-justice or random
+          const goddess = state.players.find(p => p.specialRole === 'goddess-of-justice' && p.isAlive);
+          if (goddess) {
+            // goddess breaks tie — pick one of tied at random (you can implement goddess logic later)
+            eliminatedPlayerId = tied[Math.floor(Math.random() * tied.length)];
+            log('goddess broke tie', { eliminatedPlayerId });
+          } else {
+            // unresolved tie -> reset votes and go to discussion to re-vote
+            updateState({
+              isProcessingVotes: false,
+              votingResults: {},
+              individualVotes: {},
+              currentVoterIndex: 0,
+              currentPhase: 'discussion',
+            });
+            log('tie unresolved, back to discussion', { tied });
+            return;
+          }
+        } else {
+          eliminatedPlayerId = tied[0];
+        }
+      }
+
+      const eliminated = state.players.find(p => p.id === eliminatedPlayerId);
+      if (!eliminated) throw new Error('Eliminated player not found');
+
+      log('eliminating player', { id: eliminatedPlayerId, role: eliminated.role });
+
+      // Save round data (non-blocking but await to ensure persistence if needed)
+      try {
+        await GameService.saveGameRound(state.gameId, state.currentRound, eliminatedPlayerId, state.votingResults);
+      } catch (saveErr) {
+        log('saveGameRound failed (continuing)', saveErr);
+      }
+
+      // Mark player as eliminated (unless mrwhite special flow)
+      if (eliminated.role === 'mrwhite') {
+        // Mr. White elimination triggers guess phase (do not mark dead yet until guess resolved)
+        updateState({
+          eliminatedPlayer: eliminated,
+          showEliminationResult: true,
+          showMrWhiteGuess: true,
+          isProcessingVotes: false,
+          currentPhase: 'elimination-result',
+        });
+        log('mrwhite eliminated -> show guess');
+        return;
+      }
+
+      // Regular elimination (non-mrwhite)
+      const updatedPlayers = state.players.map(p =>
+        p.id === eliminated.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
+      );
+
+      // Update elimination history
+      const entry: EliminationHistoryEntry = {
+        round: state.currentRound,
+        player: eliminated,
+        votesReceived: state.votingResults[eliminated.id] || 0,
+        eliminationMethod: 'voting',
+      };
+
+      // Check win condition after removing eliminated player
+      const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
+
+      if (isGameOver && winner) {
+        // Game over: compute points and finish
+        const scored = GameService.calculatePoints(updatedPlayers, winner);
+        updateState({
+          players: scored,
+          eliminationHistory: [...state.eliminationHistory, entry],
+          eliminatedPlayer: eliminated,
+          showEliminationResult: true,
+          currentPhase: 'final-results',
+          isProcessingVotes: false,
+          gameWinner: winner,
+        });
+        await endGame(winner);
+        log('game ended after elimination', { winner });
+        return;
+      }
+
+      // Not over: update state and continue to next round
+      updateState({
+        players: updatedPlayers,
+        eliminationHistory: [...state.eliminationHistory, entry],
+        eliminatedPlayer: eliminated,
+        showEliminationResult: true,
+        isProcessingVotes: false,
+        votingResults: {},
+        individualVotes: {},
+        currentVoterIndex: 0,
+        currentRound: state.currentRound + 1,
+        currentPhase: 'description', // move to description for next round
+      });
+
+      log('round continues', { nextRound: state.currentRound + 1 });
+    } catch (err) {
+      log('processElimination failed', err);
+      updateState({ isProcessingVotes: false });
+      throw err;
+    }
+  }, [state, updateState, log, endGame]);
+
+  const processMrWhiteGuess = useCallback(async (guess: string) => {
+    try {
+      log('processMrWhiteGuess', { guess });
+      if (!state.eliminatedPlayer || !state.wordPair) throw new Error('Invalid state for Mr. White guess');
+
+      const normalizedGuess = (guess || '').toString().trim().toLowerCase();
+      const correctWord = (state.wordPair.civilian_word || '').toString().trim().toLowerCase();
+      const isCorrect = normalizedGuess === correctWord;
+
+      // Save result of guess
+      try {
+        await GameService.saveGameRound(state.gameId, state.currentRound, state.eliminatedPlayer.id, state.votingResults, guess, isCorrect);
+      } catch (saveErr) {
+        log('saveGameRound failed for mrwhite guess (continuing)', saveErr);
+      }
+
+      // Reset guess UI flags
+      updateState({
+        showMrWhiteGuess: false,
+        mrWhiteGuess: '',
+        showEliminationResult: false,
+      });
+
+      if (isCorrect) {
+        // Mr. White wins immediately
+        const scored = GameService.calculatePoints(state.players, 'Mr. White');
+        // update elimination history marking this method
+        const updatedHistory = state.eliminationHistory.map(e =>
+          e.player.id === state.eliminatedPlayer!.id ? { ...e, eliminationMethod: 'mr-white-guess' } : e
+        );
+        updateState({
+          players: scored,
+          gameWinner: 'Mr. White',
+          eliminationHistory: updatedHistory,
+          currentPhase: 'final-results',
+        });
+        await endGame('Mr. White');
+        log('Mr. White guessed correctly -> Mr. White wins');
+        return;
+      }
+
+      // Incorrect guess -> the eliminated player is permanently eliminated now
+      const updatedPlayers = state.players.map(p =>
+        p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
+      );
+
+      // Check win condition after removing Mr White
+      const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
+
+      if (isGameOver && winner) {
+        const scored = GameService.calculatePoints(updatedPlayers, winner);
+        updateState({
+          players: scored,
+          gameWinner: winner,
+          currentPhase: 'final-results',
+        });
+        await endGame(winner);
+        log('Game ended after Mr White incorrect guess', { winner });
+        return;
+      }
+
+      // Continue to next round
+      updateState({
+        players: updatedPlayers,
+        currentRound: state.currentRound + 1,
+        votingResults: {},
+        individualVotes: {},
+        currentVoterIndex: 0,
+        showEliminationResult: false,
+        currentPhase: 'description',
+      });
+
+      log('Mr White guessed incorrectly -> continue to next round');
+    } catch (err) {
+      log('processMrWhiteGuess failed', err);
+      updateState({ showMrWhiteGuess: false, mrWhiteGuess: '', showEliminationResult: false });
+      throw err;
+    }
+  }, [state, updateState, log, endGame]);
+
+  const skipMrWhiteGuess = useCallback(async () => {
+    try {
+      log('skipMrWhiteGuess');
+      if (!state.eliminatedPlayer) throw new Error('No eliminated player');
+
+      try {
+        await GameService.saveGameRound(state.gameId, state.currentRound, state.eliminatedPlayer.id, state.votingResults);
+      } catch (saveErr) {
+        log('saveGameRound failed on skip (continuing)', saveErr);
+      }
+
+      const updatedPlayers = state.players.map(p =>
+        p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
+      );
+
+      const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
+
+      if (isGameOver && winner) {
+        const scored = GameService.calculatePoints(updatedPlayers, winner);
+        updateState({
+          players: scored,
+          gameWinner: winner,
+          currentPhase: 'final-results',
+          showEliminationResult: false,
+        });
+        await endGame(winner);
+        log('Game ended after skipping Mr White guess', { winner });
+        return;
+      }
+
+      // continue next round
+      updateState({
+        players: updatedPlayers,
+        currentRound: state.currentRound + 1,
+        votingResults: {},
+        individualVotes: {},
+        currentVoterIndex: 0,
+        showEliminationResult: false,
+        showMrWhiteGuess: false,
+        currentPhase: 'description',
+      });
+
+      log('Skipped Mr White guess -> continue');
+    } catch (err) {
+      log('skipMrWhiteGuess failed', err);
+      updateState({ showMrWhiteGuess: false, showEliminationResult: false });
+      throw err;
+    }
+  }, [state, updateState, log, endGame]);
 
   const resetGame = useCallback(() => {
-    log('Resetting game');
+    log('resetGame');
     setState({
       gameId: '',
       players: [],
@@ -577,10 +499,8 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     processMrWhiteGuess,
     skipMrWhiteGuess,
     endGame,
-    resetGame,
     updateState,
-    setCurrentRound,
-    generateDescriptionOrder,
+    resetGame,
   };
 
   return [state, actions];
