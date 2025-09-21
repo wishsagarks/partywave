@@ -21,21 +21,15 @@ interface ModernBadgeProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   onPress?: (e: GestureResponderEvent) => void;
-  // allow passing left/right accessory (icon components) if desired
   left?: React.ReactNode;
   right?: React.ReactNode;
   accessibilityLabel?: string;
 }
 
 /**
- * ModernBadge
- *
- * Safe-to-use badge component that never renders raw string children inside a View.
- * - Primitive children (string/number) are wrapped in <Text>
- * - React elements are rendered as-is
- * - Supports basic variants, sizes and optional gradient style
+ * Named export AND default export so both import styles work.
  */
-export default function ModernBadge({
+export function ModernBadge({
   children,
   variant = 'primary',
   size = 'md',
@@ -61,7 +55,6 @@ export default function ModernBadge({
   const renderChild = (child: React.ReactNode, key?: number | string) => {
     if (child === null || child === undefined) return null;
 
-    // primitives
     if (typeof child === 'string' || typeof child === 'number') {
       return (
         <Text key={String(key ?? child)} style={textStyles} selectable={false}>
@@ -70,24 +63,23 @@ export default function ModernBadge({
       );
     }
 
-    // If it's an array (React will pass array items individually here usually)
     if (Array.isArray(child)) {
-      return child.map((c, i) => renderChild(c, `${key ?? 'arr'}-${i}`));
+      return child.map((c, i) => renderChild(c, `${String(key ?? 'arr')}-${i}`));
     }
 
-    // React element -> render as-is. For safety, clone to ensure it has a key.
     if (React.isValidElement(child)) {
-      // Avoid overwriting style prop on icon elements — they may accept color/size props.
-    const childKey =
-      key ??
-      (child.props && child.props.testID) ??
-      Math.random().toString();
-    
-    return React.cloneElement(child, { key: childKey });
+      // Build a safe key without mixing ?? and || in one expression
+      const childKey =
+        (key !== null && key !== undefined)
+          ? String(key)
+          : (child.props && child.props.testID)
+            ? String(child.props.testID)
+            : Math.random().toString();
 
+      return React.cloneElement(child, { key: childKey });
     }
 
-    // Fallback: stringify
+    // Fallback: stringify anything unexpected
     return (
       <Text key={String(key ?? 'fallback')} style={textStyles}>
         {String(child)}
@@ -95,18 +87,14 @@ export default function ModernBadge({
     );
   };
 
-  // Compose content: optional left icon, children, optional right icon
   const content = (
     <>
       {left && <View style={styles.iconWrapper}>{renderChild(left, 'left')}</View>}
-      <View style={styles.childrenWrapper}>
-        {renderChild(children, 'children')}
-      </View>
+      <View style={styles.childrenWrapper}>{renderChild(children, 'children')}</View>
       {right && <View style={styles.iconWrapper}>{renderChild(right, 'right')}</View>}
     </>
   );
 
-  // If an onPress is provided, make it touchable
   if (onPress) {
     return (
       <TouchableOpacity
@@ -128,6 +116,9 @@ export default function ModernBadge({
   );
 }
 
+/* Default export for compatibility */
+export default ModernBadge;
+
 /* ----------------------------- Styles ------------------------------ */
 
 const styles = StyleSheet.create({
@@ -141,7 +132,6 @@ const styles = StyleSheet.create({
     minHeight: 28,
   },
   gradientOverlay: {
-    // No actual gradient here (avoid extra libs). Subtle elevated look for gradient flag.
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
@@ -196,7 +186,6 @@ const variantStyles: Record<Variant, ViewStyle> = {
   },
 };
 
-/* Size variations */
 const sizeStyles: Record<NonNullable<ModernBadgeProps['size']>, ViewStyle> = {
   xs: { paddingHorizontal: 6, paddingVertical: 2, minHeight: 20 },
   sm: { paddingHorizontal: 8, paddingVertical: 4, minHeight: 24 },
