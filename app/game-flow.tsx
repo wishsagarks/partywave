@@ -3,8 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
-import { GameService } from '@/services/gameService';
-import { Eye, ArrowRight, Trophy, RotateCcw, MessageCircle, SkipForward, Zap, Vote, Clock } from 'lucide-react-native';
+import { Eye, ArrowRight, Trophy, RotateCcw, MessageCircle, SkipForward, Vote, Clock } from 'lucide-react-native';
 import { useGameFlowManager } from '@/hooks/useGameFlowManager';
 import ModernCard from '@/components/ui/modern-card';
 import ModernButton from '@/components/ui/modern-button';
@@ -31,18 +30,24 @@ export default function GameFlow() {
     descriptionOrder = [],
   } = gameState;
 
-  // These hooks MUST be at top-level (moved here to avoid "rendered more hooks" errors)
+  // Hooks that must always be top-level
   const [currentPlayerIndex, setCurrentPlayerIndex] = useState(0);
   const [wordRevealed, setWordRevealed] = useState(false);
 
-  // Initialize game on mount
+  // Initialize on mount
   useEffect(() => {
-    // params from router can be strings; the hook handles parsing
     gameActions.initializeGame(params);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helpers
+  const getAlivePlayers = () => players.filter(p => p.isAlive);
+  const getVotingPlayers = () => players.filter(p => p.isAlive || p.canVote);
+  const getCurrentVoter = () => {
+    const votingPlayers = getVotingPlayers();
+    return votingPlayers[currentVoterIndex] || null;
+  };
+
   const getRoleColor = (role: string) => {
     switch (role) {
       case 'civilian': return '#38a169';
@@ -70,14 +75,7 @@ export default function GameFlow() {
     }
   };
 
-  const getAlivePlayers = () => players.filter(p => p.isAlive);
-  const getVotingPlayers = () => players.filter(p => p.isAlive || p.canVote);
-  const getCurrentVoter = () => {
-    const votingPlayers = getVotingPlayers();
-    return votingPlayers[currentVoterIndex] || null;
-  };
-
-  // orderedPlayers derived from descriptionOrder (stable across renders)
+  // orderedPlayers derived from descriptionOrder (fall back to alive players)
   const orderedPlayers = useMemo(() => {
     if (descriptionOrder && descriptionOrder.length > 0) {
       return descriptionOrder
@@ -121,7 +119,7 @@ export default function GameFlow() {
     }
   };
 
-  // Render voting phase
+  // Render: Voting
   if (currentPhase === 'voting') {
     const votingPlayers = getVotingPlayers();
     const alivePlayers = getAlivePlayers();
@@ -251,7 +249,7 @@ export default function GameFlow() {
     );
   }
 
-  // Word distribution phase
+  // Word distribution
   if (currentPhase === 'word-distribution') {
     const currentPlayer = players[currentPlayerIndex];
 
@@ -311,7 +309,7 @@ export default function GameFlow() {
                       setCurrentPlayerIndex(currentPlayerIndex + 1);
                       setWordRevealed(false);
                     } else {
-                      // reset distribution states and advance
+                      // finish distribution and reset
                       setCurrentPlayerIndex(0);
                       setWordRevealed(false);
                       gameActions.advancePhase('description');
@@ -329,7 +327,7 @@ export default function GameFlow() {
     );
   }
 
-  // Description phase (uses descriptionOrder from hook via orderedPlayers)
+  // Description phase (use orderedPlayers)
   if (currentPhase === 'description') {
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -372,7 +370,7 @@ export default function GameFlow() {
     );
   }
 
-  // Discussion phase
+  // Discussion
   if (currentPhase === 'discussion') {
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -408,7 +406,7 @@ export default function GameFlow() {
     );
   }
 
-  // Elimination result phase
+  // Elimination result
   if (currentPhase === 'elimination-result') {
     if (!eliminatedPlayer) {
       return (
@@ -494,7 +492,7 @@ export default function GameFlow() {
                 if (eliminatedPlayer.role === 'mrwhite') {
                   gameActions.advancePhase('mr-white-guess');
                 } else {
-                  // continueAfterElimination: reuse logic in hook by notifying to process next flow
+                  // Reuse hook's processElimination path to continue
                   gameActions.processElimination(eliminatedPlayer.id);
                 }
               }}
@@ -508,7 +506,7 @@ export default function GameFlow() {
     );
   }
 
-  // Mr. White guess phase
+  // Mr. White guess
   if (currentPhase === 'mr-white-guess') {
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -660,452 +658,114 @@ export default function GameFlow() {
     );
   }
 
+  // Default fallback
   return <View />;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 20,
-    gap: 8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#A0AEC0',
-  },
-  centerContent: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  wordDistributionCard: {
-    alignItems: 'center',
-    gap: 24,
-    minWidth: 320,
-  },
-  passPhoneText: {
-    fontSize: 18,
-    color: '#CBD5E0',
-    marginBottom: 8,
-  },
-  currentPlayerName: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#f093fb',
-    marginBottom: 16,
-  },
-  wordRevealContainer: {
-    alignItems: 'center',
-    gap: 20,
-  },
-  wordText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  wordHint: {
-    fontSize: 14,
-    color: '#A0AEC0',
-    textAlign: 'center',
-    fontStyle: 'italic',
-    lineHeight: 20,
-  },
-  noWordText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#d69e2e',
-    textAlign: 'center',
-  },
-  mrWhiteHint: {
-    fontSize: 14,
-    color: '#d69e2e',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  descriptionCard: {
-    alignItems: 'center',
-    gap: 24,
-    minWidth: 320,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  descriptionOrderList: {
-    gap: 12,
-    width: '100%',
-  },
-  descriptionOrderItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  descriptionOrderText: {
-    fontSize: 16,
-    color: '#E2E8F0',
-    fontWeight: '500',
-  },
-  descriptionHint: {
-    fontSize: 14,
-    color: '#667eea',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  discussionCard: {
-    gap: 24,
-    marginBottom: 32,
-  },
-  discussionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
-  },
-  discussionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  discussionPoints: {
-    gap: 16,
-  },
-  discussionText: {
-    fontSize: 16,
-    color: '#CBD5E0',
-    lineHeight: 24,
-  },
-  votingProgress: {
-    paddingHorizontal: 24,
-    marginBottom: 24,
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#CBD5E0',
-    textAlign: 'center',
-    marginBottom: 12,
-  },
-  progressBar: {
-    height: 6,
-    backgroundColor: '#2d3748',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#667eea',
-  },
-  currentVoterCard: {
-    alignItems: 'center',
-    gap: 12,
-    margin: 24,
-  },
-  currentVoterLabel: {
-    fontSize: 14,
-    color: '#A0AEC0',
-  },
-  currentVoterName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#f093fb',
-  },
-  votingInstructions: {
-    fontSize: 14,
-    color: '#CBD5E0',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  playersContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-  },
-  playerCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    borderRadius: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  mostVotedPlayerCard: {
-    borderColor: '#e53e3e',
-    backgroundColor: 'rgba(229, 62, 62, 0.1)',
-  },
-  playerInfo: {
-    flex: 1,
-  },
-  playerName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  voteInfo: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  tapToVoteText: {
-    fontSize: 12,
-    color: '#667eea',
-    fontWeight: '600',
-  },
-  votingSummary: {
-    margin: 24,
-  },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  summaryList: {
-    gap: 8,
-  },
-  summaryItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryPlayerName: {
-    fontSize: 14,
-    color: '#CBD5E0',
-  },
-  processingCard: {
-    alignItems: 'center',
-    gap: 20,
-  },
-  processingText: {
-    fontSize: 16,
-    color: '#CBD5E0',
-    textAlign: 'center',
-  },
-  eliminationResultCard: {
-    alignItems: 'center',
-    gap: 24,
-    minWidth: 320,
-  },
-  eliminatedPlayerHeader: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  eliminatedPlayerEmoji: {
-    fontSize: 64,
-  },
-  eliminatedPlayerName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  eliminatedPlayerWord: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-  },
-  eliminatedWordLabel: {
-    fontSize: 14,
-    color: '#A0AEC0',
-  },
-  eliminatedWordText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#f093fb',
-  },
-  eliminationStats: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-  },
-  eliminationStatsText: {
-    fontSize: 14,
-    color: '#CBD5E0',
-  },
-  mrWhiteEliminationInfo: {
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    backgroundColor: 'rgba(214, 158, 46, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d69e2e',
-  },
-  mrWhiteEliminationText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#d69e2e',
-    textAlign: 'center',
-  },
-  mrWhiteEliminationSubtext: {
-    fontSize: 14,
-    color: '#d69e2e',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  normalEliminationInfo: {
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-  },
-  normalEliminationText: {
-    fontSize: 14,
-    color: '#CBD5E0',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  guessCard: {
-    gap: 24,
-    minWidth: 320,
-  },
-  mrWhiteGuessInstructions: {
-    fontSize: 18,
-    color: '#d69e2e',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  guessButtonsContainer: {
-    gap: 16,
-  },
-  finalResultsContainer: {
-    flex: 1,
-    padding: 24,
-  },
-  winnerCard: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  winnerText: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  wordRevealCard: {
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 24,
-  },
-  wordRevealTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 8,
-  },
-  wordRevealText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  playersResultsList: {
-    gap: 16,
-  },
-  playerResultCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  playerResultInfo: {
-    flex: 1,
-    gap: 8,
-  },
-  playerResultName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  playerResultRole: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  playerResultWord: {
-    fontSize: 12,
-    color: '#A0AEC0',
-    fontStyle: 'italic',
-  },
-  finalButtonsContainer: {
-    padding: 24,
-    gap: 16,
-  },
-  eliminationHistoryCard: {
-    marginBottom: 24,
-  },
-  eliminationHistoryTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  eliminationHistoryList: {
-    gap: 12,
-  },
-  eliminationHistoryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 12,
-  },
-  eliminationRound: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#667eea',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  eliminationRoundText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  eliminationDetails: {
-    flex: 1,
-    gap: 4,
-  },
-  eliminationPlayerName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  eliminationPlayerRole: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  eliminationMethod: {
-    fontSize: 12,
-    color: '#A0AEC0',
-    fontStyle: 'italic',
-  },
+  container: { flex: 1 },
+  header: { alignItems: 'center', paddingTop: 60, paddingBottom: 20, gap: 8 },
+  title: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width:0, height:2 }, textShadowRadius: 4 },
+  subtitle: { fontSize: 16, color: '#A0AEC0' },
+  centerContent: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  /* ...rest of styles copied from your previous file... */
+  wordDistributionCard: { alignItems: 'center', gap: 24, minWidth: 320 },
+  passPhoneText: { fontSize: 18, color: '#CBD5E0', marginBottom: 8 },
+  currentPlayerName: { fontSize: 32, fontWeight: 'bold', color: '#f093fb', marginBottom: 16 },
+  wordRevealContainer: { alignItems: 'center', gap: 20 },
+  wordText: { fontSize: 36, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+  wordHint: { fontSize: 14, color: '#A0AEC0', textAlign: 'center', fontStyle: 'italic', lineHeight: 20 },
+  noWordText: { fontSize: 28, fontWeight: 'bold', color: '#d69e2e', textAlign: 'center' },
+  mrWhiteHint: { fontSize: 14, color: '#d69e2e', textAlign: 'center', fontStyle: 'italic' },
+
+  descriptionCard: { alignItems: 'center', gap: 24, minWidth: 320 },
+  sectionTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+  descriptionOrderList: { gap: 12, width: '100%' },
+  descriptionOrderItem: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)' },
+  descriptionOrderText: { fontSize: 16, color: '#E2E8F0', fontWeight: '500' },
+  descriptionHint: { fontSize: 14, color: '#667eea', textAlign: 'center', fontStyle: 'italic' },
+
+  discussionCard: { gap: 24, marginBottom: 32 },
+  discussionHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
+  discussionTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' },
+  discussionPoints: { gap: 16 },
+  discussionText: { fontSize: 16, color: '#CBD5E0', lineHeight: 24 },
+
+  votingProgress: { paddingHorizontal: 24, marginBottom: 24 },
+  progressText: { fontSize: 14, color: '#CBD5E0', textAlign: 'center', marginBottom: 12 },
+  progressBar: { height: 6, backgroundColor: '#2d3748', borderRadius: 3, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: '#667eea' },
+
+  currentVoterCard: { alignItems: 'center', gap: 12, margin: 24 },
+  currentVoterLabel: { fontSize: 14, color: '#A0AEC0' },
+  currentVoterName: { fontSize: 24, fontWeight: 'bold', color: '#f093fb' },
+  votingInstructions: { fontSize: 14, color: '#CBD5E0', textAlign: 'center', fontStyle: 'italic' },
+
+  playersContainer: { flex: 1, paddingHorizontal: 24 },
+  playerCard: { backgroundColor: 'rgba(255,255,255,0.05)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20, borderRadius: 16, marginBottom: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },
+  mostVotedPlayerCard: { borderColor: '#e53e3e', backgroundColor: 'rgba(229,62,62,0.1)' },
+  playerInfo: { flex: 1 },
+  playerName: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  voteInfo: { alignItems: 'center', gap: 8 },
+  tapToVoteText: { fontSize: 12, color: '#667eea', fontWeight: '600' },
+
+  votingSummary: { margin: 24 },
+  summaryTitle: { fontSize: 16, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 16 },
+  summaryList: { gap: 8 },
+  summaryItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  summaryPlayerName: { fontSize: 14, color: '#CBD5E0' },
+
+  processingCard: { alignItems: 'center', gap: 20 },
+  processingText: { fontSize: 16, color: '#CBD5E0', textAlign: 'center' },
+
+  eliminationResultCard: { alignItems: 'center', gap: 24, minWidth: 320 },
+  eliminatedPlayerHeader: { alignItems: 'center', gap: 16 },
+  eliminatedPlayerEmoji: { fontSize: 64 },
+  eliminatedPlayerName: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+
+  eliminatedPlayerWord: { alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 24, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
+  eliminatedWordLabel: { fontSize: 14, color: '#A0AEC0' },
+  eliminatedWordText: { fontSize: 20, fontWeight: 'bold', color: '#f093fb' },
+
+  eliminationStats: { alignItems: 'center', gap: 8, paddingVertical: 12, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 },
+  eliminationStatsText: { fontSize: 14, color: '#CBD5E0' },
+
+  mrWhiteEliminationInfo: { alignItems: 'center', gap: 8, paddingVertical: 16, paddingHorizontal: 24, backgroundColor: 'rgba(214,158,46,0.1)', borderRadius: 12, borderWidth: 1, borderColor: '#d69e2e' },
+  mrWhiteEliminationText: { fontSize: 16, fontWeight: 'bold', color: '#d69e2e', textAlign: 'center' },
+  mrWhiteEliminationSubtext: { fontSize: 14, color: '#d69e2e', textAlign: 'center', fontStyle: 'italic' },
+
+  normalEliminationInfo: { alignItems: 'center', paddingVertical: 12, paddingHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 },
+  normalEliminationText: { fontSize: 14, color: '#CBD5E0', textAlign: 'center', fontStyle: 'italic' },
+
+  guessCard: { gap: 24, minWidth: 320 },
+  mrWhiteGuessInstructions: { fontSize: 18, color: '#d69e2e', textAlign: 'center', lineHeight: 24 },
+  guessButtonsContainer: { gap: 16 },
+
+  finalResultsContainer: { flex: 1, padding: 24 },
+  winnerCard: { alignItems: 'center', marginBottom: 24 },
+  winnerText: { fontSize: 36, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+
+  wordRevealCard: { alignItems: 'center', gap: 12, marginBottom: 24 },
+  wordRevealTitle: { fontSize: 18, fontWeight: 'bold', color: '#667eea', marginBottom: 8 },
+  wordRevealText: { fontSize: 16, color: '#FFFFFF', fontWeight: '600' },
+
+  playersResultsList: { gap: 16 },
+  playerResultCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  playerResultInfo: { flex: 1, gap: 8 },
+  playerResultName: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF' },
+  playerResultRole: { fontSize: 14, fontWeight: '600' },
+  playerResultWord: { fontSize: 12, color: '#A0AEC0', fontStyle: 'italic' },
+
+  finalButtonsContainer: { padding: 24, gap: 16 },
+
+  eliminationHistoryCard: { marginBottom: 24 },
+  eliminationHistoryTitle: { fontSize: 18, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 16, textAlign: 'center' },
+  eliminationHistoryList: { gap: 12 },
+  eliminationHistoryItem: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 12, paddingHorizontal: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12 },
+  eliminationRound: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#667eea', alignItems: 'center', justifyContent: 'center' },
+  eliminationRoundText: { color: '#FFFFFF', fontSize: 12, fontWeight: 'bold' },
+  eliminationDetails: { flex: 1, gap: 4 },
+  eliminationPlayerName: { fontSize: 16, fontWeight: 'bold', color: '#FFFFFF' },
+  eliminationPlayerRole: { fontSize: 14, fontWeight: '600' },
+  eliminationMethod: { fontSize: 12, color: '#A0AEC0', fontStyle: 'italic' },
 });
