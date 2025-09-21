@@ -1,5 +1,4 @@
-// hooks/useGameFlowManager.tsx  (replace the entire file with this version)
-
+// hooks/useGameFlowManager.tsx
 import { useState, useCallback, useRef } from 'react';
 import { GameService } from '@/services/gameService';
 import { Player, GamePhase } from '@/types/game';
@@ -37,16 +36,14 @@ interface GameFlowActions {
   endGame: (winner: string) => Promise<void>;
   resetGame: () => void;
 
-  // NEW: expose the bulk updater (so callers can call updateState)
+  // Exposed for callers that expect to patch state directly
   updateState: (updates: Partial<GameFlowState>) => void;
-
-  // NEW: convenience setter for a common field
   setCurrentRound: (round: number) => void;
 }
 
 export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
   const logRef = useRef<string[]>([]);
-  
+
   const log = useCallback((message: string, data?: any) => {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] ${message}`;
@@ -72,7 +69,6 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     showEliminationResult: false,
   });
 
-  // keep the internal updateState (used throughout the hook)
   const updateState = useCallback((updates: Partial<GameFlowState>) => {
     setState(prev => {
       const newState = { ...prev, ...updates };
@@ -81,7 +77,6 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     });
   }, [log]);
 
-  // Convenience setter for callers that only want to change round
   const setCurrentRound = useCallback((round: number) => {
     updateState({ currentRound: round });
   }, [updateState]);
@@ -89,7 +84,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
   const initializeGame = useCallback(async (params: any) => {
     try {
       log('Initializing game', params);
-      
+
       const gameData = await GameService.initializeGame({
         gameId: params.gameId,
         playerCount: params.playerCount,
@@ -111,6 +106,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         currentPhase: 'word-distribution',
         currentRound: 1,
         eliminationHistory: [],
+        votingResults: {},
+        individualVotes: {},
+        currentVoterIndex: 0,
       });
 
       log('Game initialized successfully', gameData);
@@ -180,28 +178,30 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       log('Processing elimination', { playerId, votingResults: state.votingResults });
 
       let eliminatedPlayerId = playerId;
-      
+
       if (!eliminatedPlayerId) {
-        const maxVotes = Math.max(...Object.values(state.votingResults));
+        // handle case with empty votingResults gracefully
+        const votes = Object.values(state.votingResults);
+        const maxVotes = votes.length ? Math.max(...votes) : 0;
         const tiedPlayerIds = Object.keys(state.votingResults).filter(id => state.votingResults[id] === maxVotes);
-        
+
         if (tiedPlayerIds.length > 1) {
-          const goddessPlayer = state.players.find(p => 
+          const goddessPlayer = state.players.find(p =>
             p.specialRole === 'goddess-of-justice' && (p.isAlive || p.canVote)
           );
-          
+
           if (goddessPlayer) {
             eliminatedPlayerId = tiedPlayerIds[Math.floor(Math.random() * tiedPlayerIds.length)];
             log('Goddess of Justice broke tie', { eliminatedPlayerId });
           } else {
             log('Unresolved tie, no elimination');
-            updateState({ 
+            updateState({
               isProcessingVotes: false,
               votingResults: {},
               individualVotes: {},
               currentVoterIndex: 0,
+              currentPhase: 'discussion',
             });
-            advancePhase('discussion');
             return;
           }
         } else {
@@ -216,7 +216,6 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
 
       log('Player eliminated', { player: eliminatedPlayer.name, role: eliminatedPlayer.role });
 
-      // Add to elimination history
       const eliminationEntry = {
         round: state.currentRound,
         player: eliminatedPlayer,
@@ -231,34 +230,36 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         state.votingResults
       );
 
-      updateState({ 
+      updateState({
         eliminatedPlayer,
         eliminationHistory: [...state.eliminationHistory, eliminationEntry],
         showEliminationResult: true,
         currentPhase: 'elimination-result',
+        isProcessingVotes: false,
       });
 
       if (eliminatedPlayer.role === 'mrwhite') {
         log('Mr. White eliminated, showing guess screen');
-        updateState({ 
+        updateState({
           showMrWhiteGuess: true,
           isProcessingVotes: false,
         });
       } else {
-        const updatedPlayers = state.players.map(p => 
+        const updatedPlayers = state.players.map(p =>
           p.id === eliminatedPlayerId ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
         );
 
         const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
-        
+
         if (isGameOver && winner) {
           log('Game over', { winner });
           const scoredPlayers = GameService.calculatePoints(updatedPlayers, winner);
-          updateState({ 
+          updateState({
             players: scoredPlayers,
             gameWinner: winner,
             currentPhase: 'final-results',
             isProcessingVotes: false,
+            eliminatedPlayer: null,
           });
           await endGame(winner);
         } else {
@@ -270,6 +271,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
             individualVotes: {},
             currentVoterIndex: 0,
             isProcessingVotes: false,
+            showEliminationResult: false,
+            eliminatedPlayer: null,
+            currentPhase: 'description',
           });
         }
       }
@@ -278,7 +282,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ isProcessingVotes: false });
       throw error;
     }
-  }, [state, updateState, log, advancePhase]);
+  }, [state, updateState, log, endGame]);
 
   const processMrWhiteGuess = useCallback(async (guess: string) => {
     try {
@@ -289,7 +293,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       }
 
       const isCorrect = guess.toLowerCase().trim() === state.wordPair.civilian_word.toLowerCase().trim();
-      
+
       await GameService.saveGameRound(
         state.gameId,
         state.currentRound,
@@ -299,7 +303,8 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         isCorrect
       );
 
-      updateState({ 
+      // Clear guess UI
+      updateState({
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
         showEliminationResult: false,
@@ -308,30 +313,32 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       if (isCorrect) {
         log('Mr. White guessed correctly, wins the game');
         const scoredPlayers = GameService.calculatePoints(state.players, 'Mr. White');
-        
-        // Update elimination history for Mr. White guess success
-        const updatedHistory = state.eliminationHistory.map(entry => 
-          entry.player.id === state.eliminatedPlayer?.id 
+
+        const updatedHistory = state.eliminationHistory.map(entry =>
+          entry.player.id === state.eliminatedPlayer?.id
             ? { ...entry, eliminationMethod: 'mr-white-guess' as const }
             : entry
         );
-        
+
         updateState({
           players: scoredPlayers,
           gameWinner: 'Mr. White',
           currentPhase: 'final-results',
           eliminationHistory: updatedHistory,
           showEliminationResult: false,
+          eliminatedPlayer: null,
+          isProcessingVotes: false,
         });
         await endGame('Mr. White');
       } else {
         log('Mr. White guessed incorrectly, eliminating and checking win conditions');
-        const updatedPlayers = state.players.map(p => 
+
+        const updatedPlayers = state.players.map(p =>
           p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
         );
 
         const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
-        
+
         if (isGameOver && winner) {
           log('Game over after Mr. White elimination', { winner });
           const scoredPlayers = GameService.calculatePoints(updatedPlayers, winner);
@@ -340,6 +347,8 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
             gameWinner: winner,
             currentPhase: 'final-results',
             showEliminationResult: false,
+            eliminatedPlayer: null,
+            isProcessingVotes: false,
           });
           await endGame(winner);
         } else {
@@ -351,24 +360,28 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
             individualVotes: {},
             currentVoterIndex: 0,
             showEliminationResult: false,
+            eliminatedPlayer: null,
+            currentPhase: 'description',
+            isProcessingVotes: false,
           });
         }
       }
     } catch (error) {
       log('Mr. White guess processing failed', error);
-      updateState({ 
+      updateState({
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
         showEliminationResult: false,
+        isProcessingVotes: false,
       });
       throw error;
     }
-  }, [state, updateState, log]);
+  }, [state, updateState, log, endGame]);
 
   const skipMrWhiteGuess = useCallback(async () => {
     try {
       log('Skipping Mr. White guess');
-      
+
       if (!state.eliminatedPlayer) {
         throw new Error('No eliminated player to skip guess for');
       }
@@ -380,18 +393,18 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         state.votingResults
       );
 
-      updateState({ 
+      updateState({
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
         showEliminationResult: false,
       });
 
-      const updatedPlayers = state.players.map(p => 
+      const updatedPlayers = state.players.map(p =>
         p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
       );
 
       const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
-      
+
       if (isGameOver && winner) {
         log('Game over after skipping Mr. White guess', { winner });
         const scoredPlayers = GameService.calculatePoints(updatedPlayers, winner);
@@ -400,6 +413,8 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           gameWinner: winner,
           currentPhase: 'final-results',
           showEliminationResult: false,
+          eliminatedPlayer: null,
+          isProcessingVotes: false,
         });
         await endGame(winner);
       } else {
@@ -411,24 +426,28 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           individualVotes: {},
           currentVoterIndex: 0,
           showEliminationResult: false,
+          eliminatedPlayer: null,
+          currentPhase: 'description',
+          isProcessingVotes: false,
         });
       }
     } catch (error) {
       log('Skip Mr. White guess failed', error);
-      updateState({ 
+      updateState({
         showMrWhiteGuess: false,
         mrWhiteGuess: '',
         showEliminationResult: false,
+        isProcessingVotes: false,
       });
       throw error;
     }
-  }, [state, updateState, log]);
+  }, [state, updateState, log, endGame]);
 
   const endGame = useCallback(async (winner: string) => {
     try {
       log('Ending game', { winner });
-      
-      const duration = 15; // Calculate actual duration
+
+      const duration = 15;
       const result = {
         winner,
         totalRounds: state.currentRound,
@@ -439,9 +458,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           role: player.role,
           word: player.word,
           points: player.points || 0,
-          wasWinner: winner.toLowerCase().includes(player.role) || 
-                    (winner === 'Civilians' && player.role === 'civilian') ||
-                    (winner === 'Impostors' && (player.role === 'undercover' || player.role === 'mrwhite')),
+          wasWinner:
+            winner.toLowerCase().includes(player.role) ||
+            (winner === 'Civilians' && player.role === 'civilian') ||
+            (winner === 'Impostors' && (player.role === 'undercover' || player.role === 'mrwhite')),
         })),
       };
 
@@ -489,8 +509,6 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     skipMrWhiteGuess,
     endGame,
     resetGame,
-
-    // export the updater and convenience setter so callers can use them
     updateState,
     setCurrentRound,
   };
