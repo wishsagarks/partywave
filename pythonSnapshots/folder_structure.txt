@@ -1,0 +1,62 @@
+.
+├── app
+│   ├── _layout.tsx
+│   ├── (tabs)
+│   │   ├── _layout.tsx
+│   │   ├── game.tsx
+│   │   ├── index.tsx
+│   │   ├── leaderboard.tsx
+│   │   ├── settings.tsx
+│   │   └── word-libraries.tsx
+│   ├── +not-found.tsx
+│   └── game-flow.tsx
+├── app.json
+├── assets
+│   └── images
+│       ├── favicon.png
+│       └── icon.png
+├── components
+│   ├── game
+│   │   ├── SpecialRoleModals.tsx
+│   │   └── VotingPhase.tsx
+│   └── ui
+│       ├── aceternity-button.tsx
+│       ├── aceternity-card.tsx
+│       ├── badge.tsx
+│       ├── button.tsx
+│       ├── card.tsx
+│       ├── GlassButton.tsx
+│       ├── GlassCard.tsx
+│       ├── GlassModal.tsx
+│       ├── input.tsx
+│       ├── modern-badge.tsx
+│       ├── modern-button.tsx
+│       ├── modern-card.tsx
+│       ├── modern-input.tsx
+│       └── theme-toggle.tsx
+├── folder_structure.txt
+├── hooks
+│   ├── useFrameworkReady.ts
+│   ├── useGameData.ts
+│   ├── useGameFlowManager.ts
+│   ├── useGameState.ts
+│   ├── useSpecialRoles.ts
+│   ├── useTheme.tsx
+│   └── useVotingLogic.ts
+├── lib
+│   └── supabase.ts
+├── package-lock.json
+├── package.json
+├── README.md
+├── services
+│   └── gameService.ts
+├── supabase
+│   └── migrations
+│       ├── 20250824133655_pink_feather.sql
+│       └── 20250824172926_rough_castle.sql
+├── tsconfig.json
+└── types
+    ├── database.ts
+    └── game.ts
+
+14 directories, 46 files
