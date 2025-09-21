@@ -3,6 +3,13 @@ import { useState, useCallback, useRef } from 'react';
 import { GameService } from '@/services/gameService';
 import { Player, GamePhase } from '@/types/game';
 
+interface EliminationEntry {
+  round: number;
+  player: Player;
+  votesReceived: number;
+  eliminationMethod: 'voting' | 'chain' | 'revenger' | 'mr-white-guess';
+}
+
 interface GameFlowState {
   gameId: string;
   players: Player[];
@@ -11,12 +18,7 @@ interface GameFlowState {
   wordPair: any;
   gameWinner: string | null;
   eliminatedPlayer: Player | null;
-  eliminationHistory: Array<{
-    round: number;
-    player: Player;
-    votesReceived: number;
-    eliminationMethod: 'voting' | 'chain' | 'revenger' | 'mr-white-guess';
-  }>;
+  eliminationHistory: EliminationEntry[];
   votingResults: Record<string, number>;
   individualVotes: Record<string, string>;
   currentVoterIndex: number;
@@ -24,6 +26,9 @@ interface GameFlowState {
   mrWhiteGuess: string;
   showMrWhiteGuess: boolean;
   showEliminationResult: boolean;
+
+  // NEW: Store computed description order for the round (array of player IDs)
+  descriptionOrder: string[];
 }
 
 interface GameFlowActions {
@@ -37,6 +42,8 @@ interface GameFlowActions {
   resetGame: () => void;
   updateState: (updates: Partial<GameFlowState>) => void;
   setCurrentRound: (round: number) => void;
+  // NEW: generate description order explicitly if desired
+  generateDescriptionOrder: (players?: Player[]) => string[];
 }
 
 export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
@@ -65,6 +72,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     mrWhiteGuess: '',
     showMrWhiteGuess: false,
     showEliminationResult: false,
+    descriptionOrder: [],
   });
 
   const updateState = useCallback((updates: Partial<GameFlowState>) => {
@@ -79,15 +87,40 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     updateState({ currentRound: round });
   }, [updateState]);
 
-  /**
-   * IMPORTANT: endGame must be declared before processElimination / processMrWhiteGuess
-   * because they reference it in their implementation and dependency arrays.
-   */
+  /* ------------------------ Description order helper ------------------------ */
+  // Fisher-Yates shuffle for an array
+  const shuffleArray = (arr: any[]) => {
+    const out = arr.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
+
+  // Generate a description order (array of player IDs) from players list.
+  // Avoid returning same order twice in a row (try up to 5 times).
+  const generateDescriptionOrder = useCallback((playersList?: Player[]) => {
+    const playersToUse = playersList ?? state.players;
+    const alivePlayers = playersToUse.filter(p => p.isAlive);
+    const ids = alivePlayers.map(p => p.id);
+    if (ids.length <= 1) return ids;
+
+    let attempt = 0;
+    let order = shuffleArray(ids);
+    while (attempt < 5 && order.join(',') === state.descriptionOrder.join(',')) {
+      order = shuffleArray(ids);
+      attempt += 1;
+    }
+    return order;
+  }, [state.players, state.descriptionOrder]);
+
+  /* ----------------------------- endGame ---------------------------------- */
   const endGame = useCallback(async (winner: string) => {
     try {
       log('Ending game', { winner });
 
-      const duration = 15; // placeholder, you can compute real duration
+      const duration = 15; // placeholder, compute real if you want
       const result = {
         winner,
         totalRounds: state.currentRound,
@@ -119,9 +152,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     }
   }, [state, log]);
 
-  /**
-   * processElimination: declared after endGame so it can call await endGame(...)
-   */
+  /* ------------------------- processElimination --------------------------- */
   const processElimination = useCallback(async (playerId?: string) => {
     try {
       log('Processing elimination', { playerId, votingResults: state.votingResults });
@@ -164,11 +195,11 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
 
       log('Player eliminated', { player: eliminatedPlayer.name, role: eliminatedPlayer.role });
 
-      const eliminationEntry = {
+      const eliminationEntry: EliminationEntry = {
         round: state.currentRound,
         player: eliminatedPlayer,
         votesReceived: state.votingResults[eliminatedPlayerId] || 0,
-        eliminationMethod: 'voting' as const,
+        eliminationMethod: 'voting',
       };
 
       await GameService.saveGameRound(
@@ -178,12 +209,18 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         state.votingResults
       );
 
+      // Mark the eliminated player as not alive and also disable their voting capability
+      const playersAfterMark = state.players.map(p =>
+        p.id === eliminatedPlayerId ? { ...p, isAlive: false, canVote: false, eliminationRound: state.currentRound } : p
+      );
+
       updateState({
         eliminatedPlayer,
         eliminationHistory: [...state.eliminationHistory, eliminationEntry],
         showEliminationResult: true,
         currentPhase: 'elimination-result',
         isProcessingVotes: false,
+        players: playersAfterMark,
       });
 
       if (eliminatedPlayer.role === 'mrwhite') {
@@ -193,15 +230,11 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           isProcessingVotes: false,
         });
       } else {
-        const updatedPlayers = state.players.map(p =>
-          p.id === eliminatedPlayerId ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
-        );
-
-        const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
+        const { winner, isGameOver } = GameService.checkWinCondition(playersAfterMark);
 
         if (isGameOver && winner) {
           log('Game over', { winner });
-          const scoredPlayers = GameService.calculatePoints(updatedPlayers, winner);
+          const scoredPlayers = GameService.calculatePoints(playersAfterMark, winner);
           updateState({
             players: scoredPlayers,
             gameWinner: winner,
@@ -212,8 +245,12 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           await endGame(winner);
         } else {
           log('Game continues to next round');
+
+          // Generate next round description order and set phase to 'description'
+          const nextDescriptionOrder = generateDescriptionOrder(playersAfterMark);
+
           updateState({
-            players: updatedPlayers,
+            players: playersAfterMark,
             currentRound: state.currentRound + 1,
             votingResults: {},
             individualVotes: {},
@@ -222,6 +259,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
             showEliminationResult: false,
             eliminatedPlayer: null,
             currentPhase: 'description',
+            descriptionOrder: nextDescriptionOrder,
           });
         }
       }
@@ -230,11 +268,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       updateState({ isProcessingVotes: false });
       throw error;
     }
-  }, [state, updateState, log, endGame]);
+  }, [state, updateState, log, endGame, generateDescriptionOrder]);
 
-  /**
-   * processVote: declared after processElimination because it calls it
-   */
+  /* ---------------------------- processVote ------------------------------ */
   const processVote = useCallback(async (voterId: string, targetId: string) => {
     try {
       log('Processing vote', { voterId, targetId, currentVoterIndex: state.currentVoterIndex });
@@ -242,17 +278,12 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       const voter = state.players.find(p => p.id === voterId);
       const target = state.players.find(p => p.id === targetId);
 
-      if (!voter || !target) {
-        throw new Error('Invalid voter or target');
-      }
+      // Strict guard: voter must exist AND be alive (cannot vote if eliminated)
+      if (!voter) throw new Error('Invalid voter');
+      if (!voter.isAlive) throw new Error('Eliminated players cannot vote');
 
-      if (!voter.isAlive && !voter.canVote) {
-        throw new Error('Voter cannot vote');
-      }
-
-      if (!target.isAlive) {
-        throw new Error('Cannot vote for eliminated player');
-      }
+      if (!target) throw new Error('Invalid target');
+      if (!target.isAlive) throw new Error('Cannot vote for eliminated player');
 
       if (state.individualVotes[voterId]) {
         throw new Error('Player has already voted');
@@ -285,9 +316,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     }
   }, [state, updateState, log, processElimination]);
 
-  /**
-   * Mr. White guess processing. Declared after endGame/processElimination.
-   */
+  /* ------------------------ processMrWhiteGuess -------------------------- */
   const processMrWhiteGuess = useCallback(async (guess: string) => {
     try {
       log('Processing Mr. White guess', { guess, correctWord: state.wordPair?.civilian_word });
@@ -337,8 +366,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       } else {
         log('Mr. White guessed incorrectly, eliminating and checking win conditions');
 
+        // Mark eliminated player dead & disable their voting
         const updatedPlayers = state.players.map(p =>
-          p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
+          p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, canVote: false, eliminationRound: state.currentRound } : p
         );
 
         const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
@@ -357,6 +387,10 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           await endGame(winner);
         } else {
           log('Game continues after Mr. White elimination');
+
+          // Generate next round description order and resume normal flow
+          const nextDescriptionOrder = generateDescriptionOrder(updatedPlayers);
+
           updateState({
             players: updatedPlayers,
             currentRound: state.currentRound + 1,
@@ -367,6 +401,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
             eliminatedPlayer: null,
             currentPhase: 'description',
             isProcessingVotes: false,
+            descriptionOrder: nextDescriptionOrder,
           });
         }
       }
@@ -380,11 +415,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       });
       throw error;
     }
-  }, [state, updateState, log, endGame]);
+  }, [state, updateState, log, endGame, generateDescriptionOrder]);
 
-  /**
-   * skipMrWhiteGuess: declared after processMrWhiteGuess because it uses similar flow
-   */
+  /* ------------------------- skipMrWhiteGuess --------------------------- */
   const skipMrWhiteGuess = useCallback(async () => {
     try {
       log('Skipping Mr. White guess');
@@ -407,7 +440,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       });
 
       const updatedPlayers = state.players.map(p =>
-        p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, eliminationRound: state.currentRound } : p
+        p.id === state.eliminatedPlayer!.id ? { ...p, isAlive: false, canVote: false, eliminationRound: state.currentRound } : p
       );
 
       const { winner, isGameOver } = GameService.checkWinCondition(updatedPlayers);
@@ -426,6 +459,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         await endGame(winner);
       } else {
         log('Game continues after skipping Mr. White guess');
+
+        const nextDescriptionOrder = generateDescriptionOrder(updatedPlayers);
+
         updateState({
           players: updatedPlayers,
           currentRound: state.currentRound + 1,
@@ -436,6 +472,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
           eliminatedPlayer: null,
           currentPhase: 'description',
           isProcessingVotes: false,
+          descriptionOrder: nextDescriptionOrder,
         });
       }
     } catch (error) {
@@ -448,11 +485,9 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       });
       throw error;
     }
-  }, [state, updateState, log, endGame]);
+  }, [state, updateState, log, endGame, generateDescriptionOrder]);
 
-  /**
-   * initializeGame, advancePhase, resetGame etc.
-   */
+  /* ------------------------ initialize / helpers ------------------------- */
   const initializeGame = useCallback(async (params: any) => {
     try {
       log('Initializing game', params);
@@ -471,9 +506,18 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         throw new Error('Failed to initialize game data');
       }
 
+      // Ensure players received from backend have isAlive & canVote flags set
+      const normalizedPlayers = (gameData.players || []).map((p: Player) => ({
+        ...p,
+        isAlive: p.isAlive !== false, // default true
+        canVote: p.canVote !== false, // default true
+      }));
+
+      const firstDescriptionOrder = generateDescriptionOrder(normalizedPlayers);
+
       updateState({
         gameId: params.gameId,
-        players: gameData.players,
+        players: normalizedPlayers,
         wordPair: gameData.wordPair,
         currentPhase: 'word-distribution',
         currentRound: 1,
@@ -481,6 +525,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
         votingResults: {},
         individualVotes: {},
         currentVoterIndex: 0,
+        descriptionOrder: firstDescriptionOrder,
       });
 
       log('Game initialized successfully', gameData);
@@ -488,12 +533,19 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       log('Game initialization failed', error);
       throw error;
     }
-  }, [updateState, log]);
+  }, [updateState, log, generateDescriptionOrder]);
 
   const advancePhase = useCallback((nextPhase: GamePhase) => {
     log(`Advancing phase from ${state.currentPhase} to ${nextPhase}`);
-    updateState({ currentPhase: nextPhase });
-  }, [state.currentPhase, updateState, log]);
+
+    // If moving to description phase, compute a fresh description order
+    if (nextPhase === 'description') {
+      const nextOrder = generateDescriptionOrder();
+      updateState({ currentPhase: nextPhase, descriptionOrder: nextOrder });
+    } else {
+      updateState({ currentPhase: nextPhase });
+    }
+  }, [state.currentPhase, updateState, log, generateDescriptionOrder]);
 
   const resetGame = useCallback(() => {
     log('Resetting game');
@@ -513,6 +565,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
       mrWhiteGuess: '',
       showMrWhiteGuess: false,
       showEliminationResult: false,
+      descriptionOrder: [],
     });
   }, [log]);
 
@@ -527,6 +580,7 @@ export const useGameFlowManager = (): [GameFlowState, GameFlowActions] => {
     resetGame,
     updateState,
     setCurrentRound,
+    generateDescriptionOrder,
   };
 
   return [state, actions];
