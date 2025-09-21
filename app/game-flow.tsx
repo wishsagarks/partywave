@@ -32,6 +32,7 @@ export default function GameFlow() {
   // Initialize game on mount
   useEffect(() => {
     gameActions.initializeGame(params);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Helper functions
@@ -100,14 +101,18 @@ export default function GameFlow() {
     }
   };
 
+  // Safe guess helpers: ensure we never call .trim() on undefined
+  const getSafeGuessRaw = () => (guessInput ?? '');
+  const getSafeGuessTrimmed = () => getSafeGuessRaw().trim();
+
   const handleMrWhiteGuess = async () => {
-    if (!guessInput.trim()) {
+    if (!getSafeGuessTrimmed()) {
       Alert.alert('Error', 'Please enter a guess');
       return;
     }
 
     try {
-      await gameActions.processMrWhiteGuess(guessInput);
+      await gameActions.processMrWhiteGuess(getSafeGuessTrimmed());
     } catch (error) {
       Alert.alert('Error', 'Failed to process guess. Please try again.');
       console.error('Mr White guess error:', error);
@@ -141,8 +146,10 @@ export default function GameFlow() {
         gameActions.endGame(winner);
       } else {
         // Continue to next round
+        // Ensure currentRound is a number (fallback to 0 if undefined)
+        const nextRound = (typeof currentRound === 'number') ? currentRound + 1 : 1;
         gameActions.updateState({
-          currentRound: currentRound + 1,
+          currentRound: nextRound,
           votingResults: {},
           individualVotes: {},
           currentVoterIndex: 0,
@@ -157,8 +164,8 @@ export default function GameFlow() {
     const votingPlayers = getVotingPlayers();
     const alivePlayers = getAlivePlayers();
     const currentVoter = getCurrentVoter();
-    const votedCount = Object.keys(individualVotes).length;
-    const totalVoters = votingPlayers.length;
+    const votedCount = Object.keys(individualVotes || {}).length;
+    const totalVoters = votingPlayers.length || 1;
 
     if (isProcessingVotes) {
       return (
@@ -229,7 +236,7 @@ export default function GameFlow() {
           <Text style={styles.sectionTitle}>Vote to Eliminate:</Text>
           {alivePlayers.filter(player => player.id !== currentVoter.id).map((player) => {
             const voteCount = votingResults[player.id] || 0;
-            const maxVotes = Math.max(...Object.values(votingResults));
+            const maxVotes = Math.max(0, ...Object.values(votingResults || {}));
             const hasMostVotes = voteCount > 0 && voteCount === maxVotes;
             
             return (
@@ -262,7 +269,7 @@ export default function GameFlow() {
           <ModernCard variant="elevated" style={styles.votingSummary}>
             <Text style={styles.summaryTitle}>Current Votes:</Text>
             <View style={styles.summaryList}>
-              {Object.entries(votingResults)
+              {Object.entries(votingResults || {})
                 .sort(([,a], [,b]) => b - a)
                 .map(([playerId, count]) => {
                   const player = players.find(p => p.id === playerId);
@@ -445,7 +452,7 @@ export default function GameFlow() {
     }
 
     const alivePlayers = getAlivePlayers();
-    const votesReceived = votingResults[eliminatedPlayer.id] || 0;
+    const votesReceived = (votingResults && votingResults[eliminatedPlayer.id]) || 0;
 
     return (
       <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={styles.container}>
@@ -542,7 +549,7 @@ export default function GameFlow() {
             
             <ModernInput
               label="What is the Civilian word?"
-              value={guessInput}
+              value={guessInput ?? ''}
               onChangeText={(text) => gameActions.updateState({ guessInput: text })}
               placeholder="Enter your guess..."
               variant="glass"
@@ -553,7 +560,7 @@ export default function GameFlow() {
                 variant="success"
                 size="lg"
                 onPress={handleMrWhiteGuess}
-                disabled={!guessInput.trim()}
+                disabled={!getSafeGuessTrimmed()}
               >
                 Submit Guess
               </ModernButton>
